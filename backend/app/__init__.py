@@ -1,0 +1,3 @@
+"""
+trend-monitor backend application
+"""

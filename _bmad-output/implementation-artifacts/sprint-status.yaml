@@ -1,0 +1,72 @@
+# generated: 2026-01-07
+# project: trend-monitor
+# project_key:
+# tracking_system: file-system
+# story_location: /Users/david.lee/trend-monitor/_bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - SM typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2026-01-07
+project: trend-monitor
+project_key: ""
+tracking_system: file-system
+story_location: "/Users/david.lee/trend-monitor/_bmad-output/implementation-artifacts"
+
+development_status:
+  epic-1: in-progress
+  1-1-project-setup-railway-deployment: in-progress
+  1-2-database-schema-creation: backlog
+  1-3-backend-authentication-with-jwt: backlog
+  1-4-frontend-setup-with-login-ui: backlog
+  epic-1-retrospective: optional
+
+  epic-2: backlog
+  2-1-api-collector-infrastructure: backlog
+  2-2-reddit-data-collection: backlog
+  2-3-youtube-data-collection: backlog
+  2-4-google-trends-data-collection: backlog
+  2-5-similarweb-data-collection: backlog
+  2-6-manual-data-collection-trigger: backlog
+  2-7-automated-daily-collection-at-7-30-am: backlog
+  epic-2-retrospective: optional
+
+  epic-3: backlog
+  3-1-scoring-algorithm-implementation: backlog
+  3-2-score-calculation-integration: backlog
+  3-3-trends-api-endpoints: backlog
+  3-4-dashboard-ui-trending-now-list: backlog
+  3-5-manual-collection-trigger-ui: backlog
+  3-6-trend-detail-view: backlog
+  epic-3-retrospective: optional
+
+  epic-4: backlog
+  4-1-claude-api-integration-for-trend-briefs: backlog
+  4-2-explain-this-trend-button-ui: backlog
+  epic-4-retrospective: optional

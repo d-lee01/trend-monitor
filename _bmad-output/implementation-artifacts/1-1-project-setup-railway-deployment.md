@@ -1,0 +1,519 @@
+# Story 1.1: Project Setup & Railway Deployment
+
+**Status:** ready-for-dev
+**Epic:** 1 - Foundation & Authentication
+**Story ID:** 1.1
+**Created:** 2026-01-07
+
+---
+
+## Story
+
+As a **system administrator**,
+I want **the trend-monitor application deployed to Railway with managed PostgreSQL and environment variable configuration**,
+So that **the foundational infrastructure is operational and accessible via HTTPS**.
+
+---
+
+## Acceptance Criteria
+
+**Given** Railway account is configured
+**When** code is pushed to GitHub main branch
+**Then** Railway automatically deploys FastAPI backend service
+**And** Railway provisions managed PostgreSQL database
+**And** Environment variables are configured (DATABASE_URL, JWT_SECRET_KEY, REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET, YOUTUBE_API_KEY, SIMILARWEB_API_KEY, ANTHROPIC_API_KEY)
+**And** Backend health endpoint `/health` returns 200 OK
+**And** HTTPS is enforced with security headers (HSTS, CSP, X-Frame-Options, X-Content-Type-Options, X-XSS-Protection)
+**And** CORS is configured for frontend origin only
+
+---
+
+## Developer Context & Implementation Guide
+
+### 🎯 Epic Context
+
+This story is the **foundational first story** in Epic 1: Foundation & Authentication. It establishes the entire deployment infrastructure that all subsequent stories will build upon.
+
+**Epic Goal:** Establish secure, deployed infrastructure with authentication, database, and foundational backend/frontend architecture.
+
+**User Outcome:** dave can log into the trend-monitor dashboard securely with username/password, and the system is deployed on Railway with PostgreSQL database, FastAPI backend, and Next.js frontend operational.
+
+**Related Stories in Epic 1:**
+- 1.2: Database Schema Creation (depends on this story)
+- 1.3: Backend Authentication with JWT (depends on this story)
+- 1.4: Frontend Setup with Login UI (depends on this story)
+
+---
+
+## Technical Requirements
+
+### Architecture Decision References
+
+This story implements **multiple architectural decisions** from the Architecture Document:
+
+#### AD-2: Python Backend with FastAPI
+- **Technology Stack:** Python 3.10+ with FastAPI framework
+- **Required Libraries:**
+  ```python
+  fastapi
+  uvicorn[standard]
+  sqlalchemy
+  pydantic
+  python-jose[cryptography]  # For JWT
+  passlib[bcrypt]  # For password hashing
+  python-multipart  # For form data
+  ```
+
+#### AD-3: PostgreSQL for Data Persistence
+- **Database:** PostgreSQL 14+ managed by Railway
+- **Connection:** Via Railway-provided `DATABASE_URL` environment variable
+- **ORM:** SQLAlchemy for database interactions
+
+#### AD-7: Authentication via JWT
+- **Authentication:** JWT-based with bcrypt password hashing
+- **Security:** HTTPS enforced, secure headers configured
+
+#### AD-8: Deployment on Railway with Managed PostgreSQL
+- **Platform:** Railway (https://railway.app)
+- **Deployment Method:** Auto-deploy from GitHub main branch push
+- **Database:** Managed PostgreSQL included (automatically provisioned)
+- **CI/CD:** Built-in (git push → auto-deploy)
+
+---
+
+## Implementation Tasks
+
+### Task 1: Initialize Python FastAPI Project Structure
+
+**Subtasks:**
+- [ ] Create project root directory structure:
+  ```
+  trend-monitor/
+  ├── backend/
+  │   ├── app/
+  │   │   ├── __init__.py
+  │   │   ├── main.py          # FastAPI app entry point
+  │   │   ├── config.py        # Configuration management
+  │   │   └── api/
+  │   │       ├── __init__.py
+  │   │       └── health.py    # Health endpoint
+  │   ├── requirements.txt      # Python dependencies
+  │   └── .env.example         # Template for environment variables
+  ├── .gitignore
+  ├── README.md
+  └── railway.json             # Railway configuration (optional)
+  ```
+
+- [ ] Create `backend/requirements.txt` with dependencies:
+  ```
+  fastapi==0.104.1
+  uvicorn[standard]==0.24.0
+  sqlalchemy==2.0.23
+  psycopg2-binary==2.9.9
+  pydantic==2.5.0
+  pydantic-settings==2.1.0
+  python-jose[cryptography]==3.3.0
+  passlib[bcrypt]==1.7.4
+  python-multipart==0.0.6
+  ```
+
+- [ ] Create `.gitignore`:
+  ```
+  .env
+  __pycache__/
+  *.py[cod]
+  *$py.class
+  .DS_Store
+  venv/
+  .venv/
+  .idea/
+  .vscode/
+  *.log
+  ```
+
+### Task 2: Create FastAPI Application with Health Endpoint
+
+**Acceptance Criteria:** AC #6 (health endpoint returns 200 OK)
+
+**Subtasks:**
+- [ ] Create `backend/app/main.py`:
+  ```python
+  from fastapi import FastAPI
+  from fastapi.middleware.cors import CORSMiddleware
+  from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
+
+  app = FastAPI(
+      title="trend-monitor API",
+      description="Quantified trend monitoring system API",
+      version="1.0.0"
+  )
+
+  # HTTPS Redirect Middleware (enforces HTTPS)
+  app.add_middleware(HTTPSRedirectMiddleware)
+
+  # CORS Middleware (configure for frontend origin)
+  app.add_middleware(
+      CORSMiddleware,
+      allow_origins=["http://localhost:3000"],  # Update with Railway frontend URL
+      allow_credentials=True,
+      allow_methods=["*"],
+      allow_headers=["*"],
+  )
+
+  # Security Headers Middleware
+  @app.middleware("http")
+  async def add_security_headers(request, call_next):
+      response = await call_next(request)
+      response.headers["X-Content-Type-Options"] = "nosniff"
+      response.headers["X-Frame-Options"] = "DENY"
+      response.headers["X-XSS-Protection"] = "1; mode=block"
+      response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+      response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';"
+      return response
+
+  @app.get("/")
+  async def root():
+      return {"message": "trend-monitor API", "status": "operational"}
+
+  @app.get("/health")
+  async def health_check():
+      """Health check endpoint for Railway and monitoring services"""
+      return {
+          "status": "healthy",
+          "service": "trend-monitor-api",
+          "version": "1.0.0"
+      }
+  ```
+
+- [ ] Test health endpoint locally:
+  ```bash
+  cd backend
+  uvicorn app.main:app --reload --port 8000
+  # Visit: http://localhost:8000/health
+  # Should return: {"status": "healthy", ...}
+  ```
+
+### Task 3: Environment Configuration Management
+
+**Acceptance Criteria:** AC #3 (environment variables configured)
+
+**Subtasks:**
+- [ ] Create `backend/app/config.py` for configuration management:
+  ```python
+  from pydantic_settings import BaseSettings, SettingsConfigDict
+
+  class Settings(BaseSettings):
+      # Database
+      database_url: str
+
+      # JWT Authentication
+      jwt_secret_key: str
+      jwt_algorithm: str = "HS256"
+      jwt_expiration_days: int = 7
+
+      # External API Keys
+      reddit_client_id: str
+      reddit_client_secret: str
+      youtube_api_key: str
+      similarweb_api_key: str
+      anthropic_api_key: str
+
+      # Application
+      app_name: str = "trend-monitor"
+      debug: bool = False
+
+      model_config = SettingsConfigDict(
+          env_file=".env",
+          env_file_encoding="utf-8",
+          case_sensitive=False
+      )
+
+  settings = Settings()
+  ```
+
+- [ ] Create `backend/.env.example` template:
+  ```
+  # Database (Railway provides this automatically)
+  DATABASE_URL=postgresql://user:password@host:port/database
+
+  # JWT Secret (generate with: openssl rand -hex 32)
+  JWT_SECRET_KEY=your-secret-key-here
+
+  # External API Keys
+  REDDIT_CLIENT_ID=your-reddit-client-id
+  REDDIT_CLIENT_SECRET=your-reddit-client-secret
+  YOUTUBE_API_KEY=your-youtube-api-key
+  SIMILARWEB_API_KEY=your-similarweb-api-key
+  ANTHROPIC_API_KEY=your-anthropic-api-key
+  ```
+
+### Task 4: Railway Deployment Configuration
+
+**Acceptance Criteria:** AC #1, #2 (Railway auto-deploys, provisions database)
+
+**Subtasks:**
+- [ ] Create GitHub repository:
+  ```bash
+  git init
+  git add .
+  git commit -m "Initial commit: FastAPI backend with health endpoint"
+  git branch -M main
+  git remote add origin https://github.com/YOUR_USERNAME/trend-monitor.git
+  git push -u origin main
+  ```
+
+- [ ] Set up Railway project:
+  1. Go to https://railway.app
+  2. Click "New Project"
+  3. Select "Deploy from GitHub repo"
+  4. Authorize GitHub and select `trend-monitor` repository
+  5. Railway auto-detects Python application
+  6. Click "Add Plugin" → "PostgreSQL" to provision database
+
+- [ ] Configure Railway environment variables:
+  1. In Railway dashboard, click on your service
+  2. Go to "Variables" tab
+  3. Add all required environment variables (from `.env.example`)
+  4. Note: `DATABASE_URL` is auto-provided by PostgreSQL plugin
+
+- [ ] Create `railway.json` (optional but recommended):
+  ```json
+  {
+    "$schema": "https://railway.app/railway.schema.json",
+    "build": {
+      "builder": "NIXPACKS",
+      "buildCommand": "pip install -r backend/requirements.txt"
+    },
+    "deploy": {
+      "startCommand": "cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT",
+      "healthcheckPath": "/health",
+      "healthcheckTimeout": 100,
+      "restartPolicyType": "ON_FAILURE",
+      "restartPolicyMaxRetries": 10
+    }
+  }
+  ```
+
+- [ ] Create `Procfile` (alternative to railway.json):
+  ```
+  web: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+  ```
+
+### Task 5: Verify Deployment
+
+**Acceptance Criteria:** All ACs
+
+**Subtasks:**
+- [ ] Verify Railway deployment success:
+  - Check Railway dashboard for "Deployed" status
+  - Review build logs for errors
+  - Verify PostgreSQL database is provisioned and connected
+
+- [ ] Test health endpoint on Railway URL:
+  ```bash
+  curl https://YOUR-APP.railway.app/health
+  # Should return: {"status": "healthy", ...}
+  ```
+
+- [ ] Verify HTTPS enforcement:
+  ```bash
+  curl -I http://YOUR-APP.railway.app/health
+  # Should redirect to https://
+  ```
+
+- [ ] Verify security headers:
+  ```bash
+  curl -I https://YOUR-APP.railway.app/health
+  # Check for: Strict-Transport-Security, X-Frame-Options, X-Content-Type-Options, X-XSS-Protection, Content-Security-Policy
+  ```
+
+- [ ] Verify environment variables loaded:
+  - Check Railway logs for any missing variable errors
+  - Optionally create a debug endpoint (remove before production):
+    ```python
+    @app.get("/debug/config")
+    async def debug_config():
+        return {
+            "database_configured": bool(settings.database_url),
+            "jwt_configured": bool(settings.jwt_secret_key),
+            "apis_configured": {
+                "reddit": bool(settings.reddit_client_id),
+                "youtube": bool(settings.youtube_api_key),
+                "similarweb": bool(settings.similarweb_api_key),
+                "anthropic": bool(settings.anthropic_api_key)
+            }
+        }
+    ```
+
+---
+
+## Architecture Compliance
+
+### Security Headers (REQUIRED)
+✅ **HSTS (Strict-Transport-Security):** max-age=31536000; includeSubDomains
+✅ **CSP (Content-Security-Policy):** default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';
+✅ **X-Frame-Options:** DENY
+✅ **X-Content-Type-Options:** nosniff
+✅ **X-XSS-Protection:** 1; mode=block
+
+### CORS Configuration (REQUIRED)
+- Allow frontend origin only (localhost:3000 for dev, Railway frontend URL for production)
+- Allow credentials: true
+- Allow all methods and headers (restrict in production if needed)
+
+### Database Connection
+- Use SQLAlchemy ORM (prevents SQL injection via parameterized queries)
+- Connection string from Railway environment variable: `DATABASE_URL`
+- Connection pooling handled by SQLAlchemy
+
+### Error Handling
+- All endpoints must handle exceptions gracefully
+- Return appropriate HTTP status codes
+- Log errors for debugging (Railway logs automatically)
+
+---
+
+## Library & Framework Requirements
+
+### Python Version
+- **Required:** Python 3.10+
+- Railway auto-detects from `runtime.txt` or `requirements.txt`
+
+### Key Dependencies & Versions
+| Library | Version | Purpose |
+|---------|---------|---------|
+| fastapi | 0.104.1 | Web framework |
+| uvicorn[standard] | 0.24.0 | ASGI server |
+| sqlalchemy | 2.0.23 | ORM for PostgreSQL |
+| psycopg2-binary | 2.9.9 | PostgreSQL adapter |
+| pydantic | 2.5.0 | Data validation |
+| pydantic-settings | 2.1.0 | Settings management |
+| python-jose[cryptography] | 3.3.0 | JWT token handling |
+| passlib[bcrypt] | 1.7.4 | Password hashing |
+| python-multipart | 0.0.6 | Form data parsing |
+
+### Why These Versions?
+- FastAPI 0.104.1: Latest stable with async support
+- SQLAlchemy 2.0.23: Modern ORM with async capabilities
+- Pydantic 2.5.0: Better performance, improved validation
+
+---
+
+## File Structure Requirements
+
+### Backend Directory Structure
+```
+backend/
+├── app/
+│   ├── __init__.py
+│   ├── main.py              # FastAPI app + middleware + health endpoint
+│   ├── config.py            # Settings management (Pydantic)
+│   ├── api/
+│   │   ├── __init__.py
+│   │   └── health.py        # Health check endpoint (optional separate file)
+│   ├── models/              # SQLAlchemy models (Story 1.2)
+│   ├── schemas/             # Pydantic schemas (Story 1.3)
+│   └── core/                # Core utilities (Story 1.3+)
+├── requirements.txt         # Python dependencies
+├── .env.example             # Environment variable template
+└── .env                     # Actual secrets (git-ignored)
+```
+
+### Root Directory Structure
+```
+trend-monitor/
+├── backend/                 # Python FastAPI backend
+├── frontend/                # Next.js frontend (Story 1.4)
+├── .gitignore
+├── README.md
+├── railway.json             # Railway deployment config (optional)
+└── Procfile                 # Alternative deployment config
+```
+
+---
+
+## Testing Requirements
+
+### Manual Testing Checklist
+- [ ] Health endpoint returns 200 OK with correct JSON
+- [ ] HTTPS redirect works (http → https)
+- [ ] Security headers present in response
+- [ ] CORS headers configured correctly
+- [ ] PostgreSQL database accessible from backend
+- [ ] Environment variables loaded successfully
+- [ ] Railway auto-deploys on git push
+
+### Automated Testing (Optional for MVP)
+- Consider adding pytest tests for health endpoint
+- Add to future CI/CD pipeline
+
+---
+
+## Project Context Reference
+
+**Project:** trend-monitor
+**Project Type:** Quantified trend monitoring system with multi-API data collection
+**User:** dave (content planning lead, non-technical)
+**Goal:** Enable data-driven content planning decisions by detecting cross-platform trend momentum
+
+**Success Criteria:**
+- 70%+ hit rate on high-confidence trends
+- Meeting prep time: 2 hours → 15 minutes
+- Data collection: <30 minutes
+- Dashboard load: <2 seconds
+
+---
+
+## Definition of Done
+
+This story is **DONE** when:
+
+1. ✅ FastAPI backend deployed to Railway
+2. ✅ Health endpoint `/health` returns 200 OK
+3. ✅ HTTPS enforced with security headers (HSTS, CSP, X-Frame-Options, X-Content-Type-Options, X-XSS-Protection)
+4. ✅ CORS configured for frontend origin
+5. ✅ PostgreSQL database provisioned by Railway
+6. ✅ All environment variables configured in Railway
+7. ✅ GitHub repo connected with auto-deploy on push to main
+8. ✅ Railway dashboard shows "Deployed" status
+9. ✅ No errors in Railway logs
+10. ✅ Backend accessible via public Railway URL
+
+---
+
+## Dev Agent Record
+
+### Agent Model Used
+_To be filled by dev agent_
+
+### Completion Notes
+_To be filled by dev agent upon completion_
+
+### Files Created/Modified
+_To be filled by dev agent:_
+- List all files created
+- List all files modified
+- Include file paths and brief description of changes
+
+---
+
+## Notes for Next Stories
+
+**Story 1.2 (Database Schema)** will depend on:
+- `DATABASE_URL` environment variable (configured in this story)
+- SQLAlchemy ORM setup
+- Alembic migrations framework
+
+**Story 1.3 (Backend Authentication)** will depend on:
+- FastAPI app structure (created in this story)
+- JWT configuration (env vars configured in this story)
+- Security middleware (established in this story)
+
+**Story 1.4 (Frontend Setup)** will depend on:
+- Backend Railway URL (generated in this story)
+- CORS configuration (allowing frontend origin)
+
+---
+
+**Story Status:** ✅ Ready for Development
+**Last Updated:** 2026-01-07
