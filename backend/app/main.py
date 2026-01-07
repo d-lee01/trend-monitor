@@ -1,6 +1,5 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 
 app = FastAPI(
     title="trend-monitor API",
@@ -8,10 +7,8 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# HTTPS Redirect Middleware (enforces HTTPS)
-app.add_middleware(HTTPSRedirectMiddleware)
-
 # CORS Middleware (configure for frontend origin)
+# Note: HTTPSRedirectMiddleware removed - Railway handles HTTPS termination
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],  # Update with Railway frontend URL
