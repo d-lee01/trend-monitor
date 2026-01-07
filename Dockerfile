@@ -14,5 +14,8 @@ COPY backend /app/backend
 # Expose port (Railway will set PORT env var)
 EXPOSE 8000
 
+# Change working directory to backend
+WORKDIR /app/backend
+
 # Start command
-CMD cd backend && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
