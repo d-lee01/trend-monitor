@@ -18,4 +18,5 @@ EXPOSE 8000
 WORKDIR /app/backend
 
 # Run migrations then start app (Railway sets PORT env var)
-CMD alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
+# Use || true to allow migrations to fail without crashing the container
+CMD alembic upgrade head || echo "Migration failed - starting app anyway..." && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
