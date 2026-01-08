@@ -15,9 +15,9 @@ from app.config import settings
 engine = None
 AsyncSessionLocal = None
 
-if settings.database_url:
+if settings.database_url_async:
     engine = create_async_engine(
-        settings.database_url,
+        settings.database_url_async,
         echo=settings.debug,  # Log SQL in debug mode
         pool_pre_ping=True,   # Verify connections before using
         poolclass=NullPool,   # No connection pooling for Railway

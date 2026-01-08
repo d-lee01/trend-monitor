@@ -23,8 +23,8 @@ try:
 
     # Set sqlalchemy.url from environment variable
     # Use a placeholder if not set (for migration generation)
-    if settings.database_url:
-        config.set_main_option("sqlalchemy.url", settings.database_url)
+    if settings.database_url_async:
+        config.set_main_option("sqlalchemy.url", settings.database_url_async)
     else:
         # Placeholder URL for migration generation without actual database
         config.set_main_option("sqlalchemy.url", "postgresql+asyncpg://user:pass@localhost/dbname")

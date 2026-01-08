@@ -6,6 +6,16 @@ class Settings(BaseSettings):
     # Database
     database_url: Optional[str] = None
 
+    @property
+    def database_url_async(self) -> Optional[str]:
+        """Convert PostgreSQL URL to async format for asyncpg driver"""
+        if not self.database_url:
+            return None
+        # Railway provides postgresql:// but asyncpg needs postgresql+asyncpg://
+        if self.database_url.startswith("postgresql://"):
+            return self.database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return self.database_url
+
     # JWT Authentication
     jwt_secret_key: Optional[str] = None
     jwt_algorithm: str = "HS256"
