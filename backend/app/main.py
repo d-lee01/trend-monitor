@@ -1,17 +1,28 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from app.config import settings
 
 app = FastAPI(
     title="trend-monitor API",
     description="Quantified trend monitoring system API",
-    version="1.0.0"
+    version=settings.app_version
 )
+
+# Global exception handler
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    """Catch-all exception handler to prevent raw tracebacks in production"""
+    return JSONResponse(
+        status_code=500,
+        content={"error": "Internal server error", "message": str(exc) if settings.debug else "An error occurred"}
+    )
 
 # CORS Middleware (configure for frontend origin)
 # Note: HTTPSRedirectMiddleware removed - Railway handles HTTPS termination
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Update with Railway frontend URL
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -40,6 +51,6 @@ async def health_check():
     """Health check endpoint for Railway and monitoring services"""
     return {
         "status": "healthy",
-        "service": "trend-monitor-api",
-        "version": "1.0.0"
+        "service": settings.app_name + "-api",
+        "version": settings.app_version
     }
