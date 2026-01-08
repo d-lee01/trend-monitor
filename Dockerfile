@@ -17,6 +17,8 @@ EXPOSE 8000
 # Change working directory to backend
 WORKDIR /app/backend
 
-# Run migrations then start app (Railway sets PORT env var)
-# Use || true to allow migrations to fail without crashing the container
-CMD alembic upgrade head || echo "Migration failed - starting app anyway..." && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
+# Run user creation, migrations, then start app (Railway sets PORT env var)
+# Use || true pattern to allow steps to fail without crashing the container
+CMD python scripts/create_user.py && \
+    (alembic upgrade head || echo "Migration failed - continuing anyway...") && \
+    uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
