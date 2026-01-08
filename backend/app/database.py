@@ -10,23 +10,27 @@ from sqlalchemy.pool import NullPool
 
 from app.config import settings
 
-# Create async engine
+# Create async engine only if DATABASE_URL is set
 # Use NullPool for serverless/short-lived connections (Railway)
-engine = create_async_engine(
-    settings.database_url,
-    echo=settings.debug,  # Log SQL in debug mode
-    pool_pre_ping=True,   # Verify connections before using
-    poolclass=NullPool,   # No connection pooling for Railway
-)
+engine = None
+AsyncSessionLocal = None
 
-# Create async session factory
-AsyncSessionLocal = async_sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autocommit=False,
-    autoflush=False,
-)
+if settings.database_url:
+    engine = create_async_engine(
+        settings.database_url,
+        echo=settings.debug,  # Log SQL in debug mode
+        pool_pre_ping=True,   # Verify connections before using
+        poolclass=NullPool,   # No connection pooling for Railway
+    )
+
+    # Create async session factory
+    AsyncSessionLocal = async_sessionmaker(
+        engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autocommit=False,
+        autoflush=False,
+    )
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
@@ -39,6 +43,9 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             trends = result.scalars().all()
             return trends
     """
+    if not AsyncSessionLocal:
+        raise RuntimeError("Database not initialized - DATABASE_URL environment variable not set")
+
     async with AsyncSessionLocal() as session:
         try:
             yield session
@@ -64,4 +71,5 @@ async def init_db() -> None:
 
 async def close_db() -> None:
     """Close database connections."""
-    await engine.dispose()
+    if engine:
+        await engine.dispose()
