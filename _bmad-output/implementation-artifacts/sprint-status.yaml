@@ -41,8 +41,8 @@ story_location: "/Users/david.lee/trend-monitor/_bmad-output/implementation-arti
 
 development_status:
   epic-1: in-progress
-  1-1-project-setup-railway-deployment: review
-  1-2-database-schema-creation: backlog
+  1-1-project-setup-railway-deployment: done
+  1-2-database-schema-creation: in-progress
   1-3-backend-authentication-with-jwt: backlog
   1-4-frontend-setup-with-login-ui: backlog
   epic-1-retrospective: optional

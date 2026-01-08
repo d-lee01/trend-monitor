@@ -22,12 +22,21 @@ try:
     from app.config import settings
 
     # Set sqlalchemy.url from environment variable
-    # Use a placeholder if not set (for migration generation)
-    if settings.database_url_async:
-        config.set_main_option("sqlalchemy.url", settings.database_url_async)
-    else:
-        # Placeholder URL for migration generation without actual database
-        config.set_main_option("sqlalchemy.url", "postgresql+asyncpg://user:pass@localhost/dbname")
+    if not settings.database_url:
+        raise ValueError(
+            "DATABASE_URL environment variable is not set! "
+            "Cannot run migrations without database connection. "
+            "Please set DATABASE_URL in your environment."
+        )
+
+    if not settings.database_url_async:
+        raise ValueError(
+            "Failed to convert DATABASE_URL to async format. "
+            f"DATABASE_URL value: {settings.database_url}"
+        )
+
+    config.set_main_option("sqlalchemy.url", settings.database_url_async)
+    print(f"Alembic: Using database URL: {settings.database_url_async[:20]}...")  # Log first 20 chars
 
     # add your model's MetaData object here for 'autogenerate' support
     target_metadata = Base.metadata

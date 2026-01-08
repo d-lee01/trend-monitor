@@ -15,22 +15,32 @@ from app.config import settings
 engine = None
 AsyncSessionLocal = None
 
-if settings.database_url_async:
-    engine = create_async_engine(
-        settings.database_url_async,
-        echo=settings.debug,  # Log SQL in debug mode
-        pool_pre_ping=True,   # Verify connections before using
-        poolclass=NullPool,   # No connection pooling for Railway
-    )
+try:
+    if settings.database_url_async:
+        print(f"Database: Connecting to {settings.database_url_async[:30]}...")
+        engine = create_async_engine(
+            settings.database_url_async,
+            echo=settings.debug,  # Log SQL in debug mode
+            pool_pre_ping=True,   # Verify connections before using
+            poolclass=NullPool,   # No connection pooling for Railway
+        )
 
-    # Create async session factory
-    AsyncSessionLocal = async_sessionmaker(
-        engine,
-        class_=AsyncSession,
-        expire_on_commit=False,
-        autocommit=False,
-        autoflush=False,
-    )
+        # Create async session factory
+        AsyncSessionLocal = async_sessionmaker(
+            engine,
+            class_=AsyncSession,
+            expire_on_commit=False,
+            autocommit=False,
+            autoflush=False,
+        )
+        print("Database: Engine created successfully")
+    else:
+        print("Database: DATABASE_URL not set - database features will be unavailable")
+except Exception as e:
+    print(f"Database: Failed to create engine: {e}")
+    # Don't crash the app - let it start without database
+    engine = None
+    AsyncSessionLocal = None
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:

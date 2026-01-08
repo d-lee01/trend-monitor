@@ -14,11 +14,20 @@ from app.database import get_db, close_db
 async def lifespan(app: FastAPI):
     """FastAPI lifespan event handler for startup/shutdown tasks."""
     # Startup
-    print("Starting up - database engine created")
+    print("=" * 50)
+    print("FastAPI: Starting up trend-monitor API")
+    print(f"FastAPI: Version {settings.app_version}")
+    print(f"FastAPI: Debug mode: {settings.debug}")
+    from app.database import engine
+    if engine:
+        print("FastAPI: Database connection available")
+    else:
+        print("FastAPI: WARNING - No database connection (DATABASE_URL not set)")
+    print("=" * 50)
     yield
     # Shutdown
     await close_db()
-    print("Shutting down - database connections closed")
+    print("FastAPI: Shutting down - database connections closed")
 
 
 app = FastAPI(

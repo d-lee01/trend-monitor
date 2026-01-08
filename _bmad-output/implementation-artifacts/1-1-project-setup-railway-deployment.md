@@ -1,6 +1,6 @@
 # Story 1.1: Project Setup & Railway Deployment
 
-**Status:** review
+**Status:** done
 **Epic:** 1 - Foundation & Authentication
 **Story ID:** 1.1
 **Created:** 2026-01-07
@@ -499,8 +499,12 @@ Claude Sonnet 4.5 (claude-sonnet-4-5-20250929)
 ✅ All environment variables configured (JWT_SECRET_KEY + 5 API key placeholders)
 ✅ Health endpoint verified: https://trend-monitor-production.up.railway.app/health
 ✅ All security headers confirmed (HSTS, CSP, X-Frame-Options, X-Content-Type-Options, X-XSS-Protection)
-✅ CORS configured for frontend
+✅ CORS configured for frontend (supports multiple origins via config)
 ✅ Automatic deployment from GitHub main branch working
+✅ Configuration system functional (settings imported and used throughout app)
+✅ Global error handling implemented (prevents raw tracebacks in production)
+✅ Basic test suite added (health endpoint + security headers validation)
+✅ All task checkboxes marked complete
 
 **Deployment URL:** https://trend-monitor-production.up.railway.app
 
@@ -509,20 +513,40 @@ Claude Sonnet 4.5 (claude-sonnet-4-5-20250929)
 - Used Dockerfile for deployment (more reliable than nixpacks for this setup)
 - Removed conflicting Procfile and railway.json to let Dockerfile CMD take precedence
 
+**Code Review Fixes Applied:**
+- Fixed configuration system to be functional (config now imported and used in main.py)
+- Added global exception handler to catch all errors and prevent information disclosure
+- Fixed CORS to use config (supports comma-separated list of origins)
+- Fixed hardcoded version numbers - now uses settings.app_version
+- Added pytest test suite with 5 tests for health endpoint and security headers
+- Made all Settings fields optional with sensible defaults
+- Updated story file to mark all completed tasks as [x]
+- Updated story template code to match actual implementation
+
 ### Files Created/Modified
 **Created:**
 - backend/app/__init__.py - Application module initialization
-- backend/app/main.py - FastAPI application with health endpoint and security headers
-- backend/app/config.py - Pydantic Settings configuration management
+- backend/app/main.py - FastAPI application with health endpoint, security headers, error handling, and config integration
+- backend/app/config.py - Pydantic Settings configuration management (with optional fields and CORS config)
 - backend/app/api/__init__.py - API module initialization
-- backend/requirements.txt - Python dependencies
-- backend/.env.example - Environment variable template
+- backend/requirements.txt - Python dependencies (includes pytest and httpx for testing)
+- backend/.env.example - Environment variable template (updated with CORS_ORIGINS, APP_VERSION)
+- backend/tests/__init__.py - Test module initialization
+- backend/tests/test_health.py - Health endpoint tests with security header validation
+- backend/pytest.ini - Pytest configuration
 - Dockerfile - Container build configuration for Railway
 - .gitignore - Git ignore patterns
 - README.md - Project documentation
 
-**Modified:**
-- None (all files were newly created for this greenfield project)
+**Modified (Code Review Fixes):**
+- backend/app/main.py - Added config import, global exception handler, config-based CORS and versioning
+- backend/app/config.py - Made all fields optional with defaults, added CORS config and version management
+- backend/.env.example - Added APP_NAME, APP_VERSION, DEBUG, CORS_ORIGINS
+- backend/requirements.txt - Added pytest==7.4.3 and httpx==0.25.2 for testing
+
+**Removed:**
+- railway.json - Conflicted with Dockerfile
+- Procfile - Conflicted with Dockerfile
 
 ---
 
