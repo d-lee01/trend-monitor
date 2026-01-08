@@ -23,25 +23,25 @@ try:
 
     # Set sqlalchemy.url from environment variable
     if not settings.database_url:
-        raise ValueError(
-            "DATABASE_URL environment variable is not set! "
-            "Cannot run migrations without database connection. "
-            "Please set DATABASE_URL in your environment."
-        )
-
-    if not settings.database_url_async:
-        raise ValueError(
-            "Failed to convert DATABASE_URL to async format. "
-            f"DATABASE_URL value: {settings.database_url}"
-        )
-
-    config.set_main_option("sqlalchemy.url", settings.database_url_async)
-    print(f"Alembic: Using database URL: {settings.database_url_async[:20]}...")  # Log first 20 chars
-
-    # add your model's MetaData object here for 'autogenerate' support
-    target_metadata = Base.metadata
-except ImportError:
+        print("WARNING: DATABASE_URL environment variable is not set!")
+        print("Migrations will fail if attempted.")
+        target_metadata = None
+    elif not settings.database_url_async:
+        print(f"WARNING: Failed to convert DATABASE_URL to async format.")
+        print(f"DATABASE_URL value: {settings.database_url}")
+        target_metadata = None
+    else:
+        config.set_main_option("sqlalchemy.url", settings.database_url_async)
+        print(f"Alembic: Using database URL: {settings.database_url_async[:20]}...")  # Log first 20 chars
+        # add your model's MetaData object here for 'autogenerate' support
+        target_metadata = Base.metadata
+except ImportError as e:
     # Models not yet created - will be available after Task 2
+    print(f"Alembic: Could not import models: {e}")
+    target_metadata = None
+except Exception as e:
+    # Catch any other errors during config loading
+    print(f"Alembic: Error during configuration: {e}")
     target_metadata = None
 
 
