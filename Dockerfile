@@ -17,5 +17,5 @@ EXPOSE 8000
 # Change working directory to backend
 WORKDIR /app/backend
 
-# Start command (Railway sets PORT env var)
-CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
+# Run migrations then start app (Railway sets PORT env var)
+CMD alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}

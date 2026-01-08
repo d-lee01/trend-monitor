@@ -1,12 +1,31 @@
-from fastapi import FastAPI, HTTPException
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.config import settings
+from app.database import get_db, close_db
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """FastAPI lifespan event handler for startup/shutdown tasks."""
+    # Startup
+    print("Starting up - database engine created")
+    yield
+    # Shutdown
+    await close_db()
+    print("Shutting down - database connections closed")
+
 
 app = FastAPI(
     title="trend-monitor API",
     description="Quantified trend monitoring system API",
-    version=settings.app_version
+    version=settings.app_version,
+    lifespan=lifespan
 )
 
 # Global exception handler
@@ -54,3 +73,34 @@ async def health_check():
         "service": settings.app_name + "-api",
         "version": settings.app_version
     }
+
+
+@app.get("/health/db")
+async def health_check_database(db: AsyncSession = Depends(get_db)):
+    """Health check endpoint that verifies database connectivity."""
+    try:
+        # Execute simple query
+        result = await db.execute(text("SELECT 1"))
+        result.scalar()
+
+        # Check if tables exist
+        tables_result = await db.execute(text("""
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_schema = 'public'
+        """))
+        tables = [row[0] for row in tables_result.fetchall()]
+
+        return {
+            "status": "healthy",
+            "database": "connected",
+            "tables": tables,
+            "expected_tables": ["trends", "data_collections", "users", "api_quota_usage"],
+            "tables_exist": all(t in tables for t in ["trends", "data_collections", "users", "api_quota_usage"])
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "database": "connection_failed",
+            "error": str(e)
+        }
