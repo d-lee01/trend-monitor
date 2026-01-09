@@ -2,7 +2,7 @@
 import asyncio
 import logging
 from typing import List, Dict
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from app.collectors.base import DataCollector, CollectionResult
@@ -66,7 +66,7 @@ class CollectionOrchestrator:
                 "google_trends": CollectionResult(source="google_trends", data=[], success_rate=0.0)  # Failed
             }
         """
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
 
         logger.info(
             f"Starting parallel collection with {len(self.collectors)} collectors",
@@ -112,7 +112,7 @@ class CollectionOrchestrator:
                 results[collector.name] = CollectionResult(
                     source=collector.name,
                     data=[],
-                    success_rate=0.0,
+                    success_rate=-1.0,  # Auto-calculate (will be 0.0)
                     total_calls=len(topics),
                     successful_calls=0,
                     failed_calls=len(topics),
@@ -142,13 +142,13 @@ class CollectionOrchestrator:
                     )
 
         # Calculate overall metrics
-        duration_seconds = (datetime.utcnow() - start_time).total_seconds()
+        duration_seconds = (datetime.now(timezone.utc) - start_time).total_seconds()
         duration_minutes = duration_seconds / 60
 
         # Calculate API-specific metrics for database
-        reddit_calls = results.get("reddit", CollectionResult("reddit", [], 0.0)).total_calls
-        youtube_quota = results.get("youtube", CollectionResult("youtube", [], 0.0)).total_calls  # 1 unit per call
-        google_trends_calls = results.get("google_trends", CollectionResult("google_trends", [], 0.0)).total_calls
+        reddit_calls = results.get("reddit", CollectionResult("reddit", [])).total_calls
+        youtube_quota = results.get("youtube", CollectionResult("youtube", [])).total_calls  # 1 unit per call
+        google_trends_calls = results.get("google_trends", CollectionResult("google_trends", [])).total_calls
 
         logger.info(
             f"Collection complete: {total_trends_found} trends found in {duration_minutes:.1f} minutes",

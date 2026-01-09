@@ -199,12 +199,11 @@ class RedditCollector(DataCollector):
         # Calculate metrics
         duration_seconds = (datetime.now(timezone.utc) - start_time).total_seconds()
         total_calls = len(topics)
-        success_rate = successful_calls / total_calls if total_calls > 0 else 0.0
 
         result = CollectionResult(
             source="reddit",
             data=all_posts,  # List of post dictionaries
-            success_rate=success_rate,
+            success_rate=-1.0,  # Auto-calculate
             total_calls=total_calls,
             successful_calls=successful_calls,
             failed_calls=failed_calls,
@@ -218,7 +217,7 @@ class RedditCollector(DataCollector):
                 "event": "collection_complete",
                 "api": "reddit",
                 "posts_collected": len(all_posts),
-                "success_rate": success_rate,
+                "success_rate": result.success_rate,  # Auto-calculated
                 "duration_seconds": duration_seconds
             }
         )

@@ -1,6 +1,7 @@
 """Rate limiting implementations for API collectors."""
 import asyncio
-from datetime import datetime, timedelta, date
+import logging
+from datetime import datetime, timedelta, date, timezone
 from typing import Optional
 from collections import deque
 from sqlalchemy import select
@@ -8,6 +9,8 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.api_quota_usage import ApiQuotaUsage
+
+logger = logging.getLogger(__name__)
 
 
 class RequestsPerMinuteRateLimiter:
@@ -45,7 +48,7 @@ class RequestsPerMinuteRateLimiter:
 
     async def acquire(self):
         """Wait until request can be made without exceeding rate limit."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         # Remove requests outside current window
         cutoff = now - timedelta(seconds=self.window_seconds)
@@ -61,12 +64,12 @@ class RequestsPerMinuteRateLimiter:
             if wait_seconds > 0:
                 await asyncio.sleep(wait_seconds)
 
-        # Record this request
-        self.requests.append(datetime.utcnow())
+        # Record this request (re-fetch time after potential sleep)
+        self.requests.append(datetime.now(timezone.utc))
 
     def get_remaining(self) -> int:
         """Get number of requests remaining in current window."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         cutoff = now - timedelta(seconds=self.window_seconds)
 
         # Clean up old requests
@@ -139,6 +142,9 @@ class DailyQuotaRateLimiter:
 
         Returns:
             New total usage for today
+
+        Note:
+            Does NOT commit the transaction - caller must commit.
         """
         today = date.today()
 
@@ -153,7 +159,7 @@ class DailyQuotaRateLimiter:
         )
 
         await self.db_session.execute(stmt)
-        await self.db_session.commit()
+        # Removed commit - let caller control transaction
 
         # Get new total
         new_total = await self.get_usage_today()
@@ -161,9 +167,15 @@ class DailyQuotaRateLimiter:
         # Log warning if approaching limit
         if new_total >= self.daily_limit * self.warning_threshold:
             percentage = (new_total / self.daily_limit) * 100
-            import logging
-            logging.warning(
-                f"{self.api_name} quota at {new_total}/{self.daily_limit} ({percentage:.1f}%)"
+            logger.warning(
+                f"{self.api_name} quota at {new_total}/{self.daily_limit} ({percentage:.1f}%)",
+                extra={
+                    "event": "quota_warning",
+                    "api": self.api_name,
+                    "usage": new_total,
+                    "limit": self.daily_limit,
+                    "percentage": percentage
+                }
             )
 
         return new_total
@@ -180,11 +192,52 @@ class DailyQuotaRateLimiter:
         current_usage = await self.get_usage_today()
         return (current_usage + units) <= self.daily_limit
 
-    def get_remaining(self) -> int:
-        """Get remaining quota for today (synchronous helper).
+    async def get_remaining(self) -> int:
+        """Get remaining quota for today.
 
-        Note: This returns a cached value, call get_usage_today() for fresh data.
+        Returns:
+            Number of units remaining in today's quota
         """
-        import asyncio
-        current = asyncio.run(self.get_usage_today())
+        current = await self.get_usage_today()
         return max(0, self.daily_limit - current)
+
+    class ConsumeContext:
+        """Async context manager for quota consumption."""
+
+        def __init__(self, limiter: 'DailyQuotaRateLimiter', units: int):
+            self.limiter = limiter
+            self.units = units
+            self.consumed = False
+
+        async def __aenter__(self):
+            """Check quota before entering context."""
+            if not await self.limiter.can_consume(self.units):
+                raise RuntimeError(
+                    f"{self.limiter.api_name} quota exceeded: "
+                    f"{await self.limiter.get_usage_today()}/{self.limiter.daily_limit} units used"
+                )
+            return self
+
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            """Increment usage on successful completion."""
+            # Only increment if no exception occurred
+            if exc_type is None:
+                await self.limiter.increment_usage(self.units)
+                self.consumed = True
+
+    def consume(self, units: int) -> ConsumeContext:
+        """Create async context manager for quota consumption.
+
+        Usage:
+            async with limiter.consume(units=1):
+                # Make API call that costs 1 unit
+                response = await youtube.videos().list()
+                # Usage auto-incremented on success
+
+        Args:
+            units: Number of units to consume
+
+        Returns:
+            Async context manager that checks quota and increments usage
+        """
+        return self.ConsumeContext(self, units)

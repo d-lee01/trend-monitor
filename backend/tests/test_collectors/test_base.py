@@ -1,7 +1,7 @@
 """Tests for DataCollector abstract base class and dataclasses."""
 import pytest
 from app.collectors.base import DataCollector, CollectionResult, RateLimitInfo
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 def test_collection_result_success_rate_calculation():
@@ -9,7 +9,7 @@ def test_collection_result_success_rate_calculation():
     result = CollectionResult(
         source="test",
         data=[{"id": 1}, None, {"id": 2}],
-        success_rate=0.0,  # Will be calculated
+        success_rate=-1.0,  # Auto-calculate from successful/total
         total_calls=3,
         successful_calls=2,
         failed_calls=1
@@ -62,7 +62,7 @@ def test_collection_result_zero_division_protection():
 
 def test_rate_limit_info_dataclass():
     """Test that RateLimitInfo can be created with all fields."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     info = RateLimitInfo(
         limit=60,
         remaining=45,
@@ -114,7 +114,7 @@ async def test_data_collector_concrete_implementation():
             return RateLimitInfo(
                 limit=100,
                 remaining=50,
-                reset_at=datetime.utcnow(),
+                reset_at=datetime.now(timezone.utc),
                 quota_type="per_minute"
             )
 

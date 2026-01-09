@@ -28,7 +28,7 @@ class CollectionResult:
     Attributes:
         source: API source name (e.g., "reddit", "youtube")
         data: List of collected data points (None for failed calls)
-        success_rate: Fraction of successful API calls (0.0-1.0)
+        success_rate: Fraction of successful API calls (0.0-1.0), use -1.0 for auto-calculation
         total_calls: Total number of API calls attempted
         successful_calls: Number of successful API calls
         failed_calls: Number of failed API calls
@@ -37,7 +37,7 @@ class CollectionResult:
     """
     source: str
     data: List[Optional[Dict[str, Any]]]
-    success_rate: float
+    success_rate: float = -1.0  # -1.0 = auto-calculate
     total_calls: int = 0
     successful_calls: int = 0
     failed_calls: int = 0
@@ -45,10 +45,34 @@ class CollectionResult:
     duration_seconds: float = 0.0
 
     def __post_init__(self):
-        """Initialize computed fields."""
-        # Calculate success rate if not provided and we have calls
-        if self.total_calls > 0 and self.success_rate == 0.0:
+        """Initialize computed fields and validate data integrity."""
+        # Auto-calculate success rate if requested
+        if self.success_rate < 0 and self.total_calls > 0:
             self.success_rate = self.successful_calls / self.total_calls
+        elif self.success_rate < 0:
+            self.success_rate = 0.0
+
+        # Validate data integrity
+        if self.success_rate < 0.0 or self.success_rate > 1.0:
+            raise ValueError(f"success_rate must be between 0.0 and 1.0, got {self.success_rate}")
+
+        if self.total_calls < 0:
+            raise ValueError(f"total_calls cannot be negative, got {self.total_calls}")
+
+        if self.successful_calls < 0:
+            raise ValueError(f"successful_calls cannot be negative, got {self.successful_calls}")
+
+        if self.failed_calls < 0:
+            raise ValueError(f"failed_calls cannot be negative, got {self.failed_calls}")
+
+        if self.successful_calls + self.failed_calls > self.total_calls:
+            raise ValueError(
+                f"successful_calls ({self.successful_calls}) + failed_calls ({self.failed_calls}) "
+                f"exceeds total_calls ({self.total_calls})"
+            )
+
+        if self.duration_seconds < 0:
+            raise ValueError(f"duration_seconds cannot be negative, got {self.duration_seconds}")
 
 
 class DataCollector(ABC):

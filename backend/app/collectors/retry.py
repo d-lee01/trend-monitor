@@ -3,7 +3,7 @@ import asyncio
 import logging
 from functools import wraps
 from typing import Optional, Type, Tuple, Callable
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -43,10 +43,10 @@ def retry_with_backoff(
             last_exception: Optional[Exception] = None
 
             for attempt in range(1, max_attempts + 1):
-                start_time = datetime.utcnow()
+                start_time = datetime.now(timezone.utc)
                 try:
                     result = await func(*args, **kwargs)
-                    duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+                    duration_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
 
                     # Log successful call
                     logger.info(
@@ -64,7 +64,7 @@ def retry_with_backoff(
 
                 except exceptions as e:
                     last_exception = e
-                    duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+                    duration_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
 
                     # Log failed attempt
                     logger.warning(
