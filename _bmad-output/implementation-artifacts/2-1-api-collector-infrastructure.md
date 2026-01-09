@@ -1368,11 +1368,33 @@ All 5 tasks completed successfully:
 - backend/app/main.py - Added logging import and setup_logging() call in lifespan
 - backend/tests/conftest.py - Made database setup optional (autouse=False), fixed pytest 9 compatibility
 
+### Code Review Fixes Applied
+
+**Issues Found:** 10 (4 High, 5 Medium, 1 Low)
+**Issues Fixed:** 9 (deferred orchestrator DB updates to Story 2.6)
+
+**HIGH Severity:**
+1. ✅ Replaced deprecated datetime.utcnow() with datetime.now(timezone.utc) in all files
+2. ✅ Fixed DailyQuotaRateLimiter.get_remaining() deadlock (asyncio.run() → async def)
+3. ✅ Fixed CollectionResult.__post_init__ logic (use -1.0 sentinel for auto-calc)
+4. ⏸️ Orchestrator database updates deferred to Story 2.6 (API integration)
+
+**MEDIUM Severity:**
+5. ✅ Fixed RequestsPerMinuteRateLimiter race condition (re-fetch time after sleep)
+6. ✅ Added async context manager for DailyQuotaRateLimiter.consume()
+7. ✅ Removed forced commit() from DailyQuotaRateLimiter
+8. ✅ Moved import logging to module top
+9. ✅ Added comprehensive validation to CollectionResult.__post_init__
+
+**Test Count Update:**
+- Updated from "16/16 tests" to actual count: 28 passing (4 DB tests require database)
+
 ---
 
-**Story Status:** ✅ Review
+**Story Status:** ✅ Done
 **Last Updated:** 2026-01-09
 **Completed:** 2026-01-09
+**Code Review:** 2026-01-09 (10 issues found, 9 fixed)
 
 **Next Steps:**
 1. Run `dev-story 2-1-api-collector-infrastructure` to implement
