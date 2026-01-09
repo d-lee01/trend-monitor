@@ -1,6 +1,6 @@
 # Story 2.2: Reddit Data Collection
 
-**Status:** review
+**Status:** done
 **Epic:** 2 - Multi-Source Data Collection Pipeline
 **Story ID:** 2.2
 **Created:** 2026-01-09

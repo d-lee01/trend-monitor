@@ -49,7 +49,7 @@ development_status:
 
   epic-2: in-progress
   2-1-api-collector-infrastructure: review
-  2-2-reddit-data-collection: review
+  2-2-reddit-data-collection: done
   2-3-youtube-data-collection: backlog
   2-4-google-trends-data-collection: backlog
   2-5-similarweb-data-collection: backlog
