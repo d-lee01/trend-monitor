@@ -25,7 +25,12 @@ class Settings(BaseSettings):
     reddit_client_id: Optional[str] = None
     reddit_client_secret: Optional[str] = None
     reddit_user_agent: str = "trend-monitor:v1.0 (by /u/trendmonitor)"
+
+    # YouTube Data API v3
     youtube_api_key: Optional[str] = None
+    youtube_api_service_name: str = "youtube"
+    youtube_api_version: str = "v3"
+
     similarweb_api_key: Optional[str] = None
     anthropic_api_key: Optional[str] = None
 

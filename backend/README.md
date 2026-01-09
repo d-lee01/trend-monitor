@@ -59,6 +59,9 @@ JWT_SECRET_KEY=your_secret_key_here
 # Reddit API (Required for Story 2.2+)
 REDDIT_CLIENT_ID=your_reddit_client_id
 REDDIT_CLIENT_SECRET=your_reddit_client_secret
+
+# YouTube Data API v3 (Required for Story 2.3+)
+YOUTUBE_API_KEY=your_youtube_api_key_here
 ```
 
 ### Reddit API Setup
@@ -88,6 +91,41 @@ The Reddit collector requires OAuth 2.0 credentials:
 2. Add the environment variables:
    - `REDDIT_CLIENT_ID`
    - `REDDIT_CLIENT_SECRET`
+3. Redeploy the service
+
+### YouTube Data API v3 Setup
+
+The YouTube collector uses Google's Data API v3 with an API key:
+
+1. Go to https://console.cloud.google.com/
+2. Create a new project or select an existing project
+3. Enable "YouTube Data API v3":
+   - Click "Enable APIs and Services"
+   - Search for "YouTube Data API v3"
+   - Click "Enable"
+4. Create API key credentials:
+   - Go to "Credentials" → "Create Credentials" → "API Key"
+   - Copy the generated API key
+5. (Optional but recommended) Restrict API key:
+   - Click "Edit API key"
+   - **Application restrictions:** Set to "HTTP referrers" or "IP addresses" for production
+   - **API restrictions:** Select "Restrict key" → "YouTube Data API v3"
+6. Add to your `.env` file:
+   ```env
+   YOUTUBE_API_KEY=AIza...your_key_here
+   ```
+
+**Quota Monitoring:**
+- Default quota: 10,000 units/day (free tier)
+- `videos.list`: 1 unit per call (efficient)
+- `search.list`: 100 units per call (avoid)
+- Monitor usage in Google Cloud Console: APIs & Services → Dashboard
+- The collector will log warnings at 80% quota (8,000 units)
+
+**For Railway Deployment:**
+1. Go to Railway project → Variables
+2. Add the environment variable:
+   - `YOUTUBE_API_KEY`
 3. Redeploy the service
 
 ## Project Structure
