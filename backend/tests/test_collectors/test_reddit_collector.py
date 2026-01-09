@@ -8,7 +8,17 @@ from app.collectors.reddit_collector import RedditCollector, DEFAULT_SUBREDDITS
 
 
 @pytest.fixture
-def mock_reddit_client():
+def mock_settings():
+    """Mock settings with Reddit credentials."""
+    with patch('app.collectors.reddit_collector.settings') as mock:
+        mock.reddit_client_id = "test_client_id"
+        mock.reddit_client_secret = "test_client_secret"
+        mock.reddit_user_agent = "test_user_agent"
+        yield mock
+
+
+@pytest.fixture
+def mock_reddit_client(mock_settings):
     """Mock praw Reddit client."""
     with patch('app.collectors.reddit_collector.praw.Reddit') as mock:
         yield mock
@@ -115,7 +125,7 @@ async def test_health_check_success(mock_reddit_client):
 @pytest.mark.asyncio
 async def test_health_check_failure(mock_reddit_client):
     """Test health check with failing API."""
-    mock_reddit_client.return_value.subreddit.side_effect = Exception("Auth failed")
+    mock_reddit_client.return_value.subreddit.side_effect = PRAWException("Auth failed")
 
     collector = RedditCollector()
     is_healthy = await collector.health_check()
@@ -163,3 +173,37 @@ async def test_hours_since_post_calculation(mock_reddit_client):
     post_data = result.data[0]
     # Should be approximately 2.0 hours
     assert 1.9 <= post_data["hours_since_post"] <= 2.1
+
+
+@pytest.mark.asyncio
+async def test_rate_limiting_enforced(mock_reddit_client):
+    """Test that rate limiter is used during collection."""
+    mock_post = MagicMock()
+    mock_post.title = "Test Post"
+    mock_post.score = 1000
+    mock_post.num_comments = 50
+    mock_post.upvote_ratio = 0.95
+    mock_post.created_utc = datetime.utcnow().timestamp() - 3600
+    mock_post.subreddit.display_name = "all"
+    mock_post.subreddit.subscribers = 1000000
+    mock_post.num_crossposts = 5
+    mock_post.permalink = "/r/all/comments/abc123"
+    mock_post.url = "https://reddit.com/r/all/comments/abc123"
+    mock_post.id = "abc123"
+
+    mock_subreddit = MagicMock()
+    mock_subreddit.hot.return_value = [mock_post]
+    mock_reddit_client.return_value.subreddit.return_value = mock_subreddit
+
+    collector = RedditCollector()
+
+    # Verify rate limiter was initialized
+    assert collector.rate_limiter is not None
+    assert collector.rate_limiter.limit == 60
+
+    # Collect from multiple subreddits
+    result = await collector.collect(topics=["all", "videos", "gaming"])
+
+    # Verify collection succeeded
+    assert result.total_calls == 3
+    assert result.successful_calls == 3

@@ -1,7 +1,7 @@
 """Reddit data collector using PRAW library."""
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Dict, Any
 import praw
 from praw.exceptions import PRAWException
@@ -44,6 +44,13 @@ class RedditCollector(DataCollector):
     def __init__(self):
         """Initialize Reddit collector with OAuth authentication."""
         super().__init__(name="reddit")
+
+        # Validate credentials
+        if not settings.reddit_client_id or not settings.reddit_client_secret:
+            raise ValueError(
+                "Reddit API credentials not configured. "
+                "Please set REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET environment variables."
+            )
 
         # Initialize praw client
         self.reddit = praw.Reddit(
@@ -96,8 +103,8 @@ class RedditCollector(DataCollector):
                 posts_data = []
                 for post in hot_posts:
                     # Calculate hours since post
-                    created_time = datetime.fromtimestamp(post.created_utc)
-                    hours_since_post = (datetime.utcnow() - created_time).total_seconds() / 3600
+                    created_time = datetime.fromtimestamp(post.created_utc, tz=timezone.utc)
+                    hours_since_post = (datetime.now(timezone.utc) - created_time).total_seconds() / 3600
 
                     post_data = {
                         "title": post.title,
@@ -139,7 +146,7 @@ class RedditCollector(DataCollector):
         Returns:
             CollectionResult with collected posts and metrics
         """
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         all_posts = []
         successful_calls = 0
         failed_calls = 0
@@ -156,7 +163,9 @@ class RedditCollector(DataCollector):
 
         # Collect from each subreddit
         for subreddit_name in topics:
+            call_start = datetime.now(timezone.utc)
             posts = await self._fetch_subreddit_posts(subreddit_name, limit=5)
+            call_duration_ms = (datetime.now(timezone.utc) - call_start).total_seconds() * 1000
 
             if posts is not None:
                 all_posts.extend(posts)
@@ -168,7 +177,8 @@ class RedditCollector(DataCollector):
                         "api": "reddit",
                         "topic": f"r/{subreddit_name}",
                         "success": True,
-                        "posts_collected": len(posts)
+                        "posts_collected": len(posts),
+                        "duration_ms": round(call_duration_ms, 2)
                     }
                 )
             else:
@@ -181,12 +191,13 @@ class RedditCollector(DataCollector):
                         "event": "api_call_failed",
                         "api": "reddit",
                         "topic": f"r/{subreddit_name}",
-                        "success": False
+                        "success": False,
+                        "duration_ms": round(call_duration_ms, 2)
                     }
                 )
 
         # Calculate metrics
-        duration_seconds = (datetime.utcnow() - start_time).total_seconds()
+        duration_seconds = (datetime.now(timezone.utc) - start_time).total_seconds()
         total_calls = len(topics)
         success_rate = successful_calls / total_calls if total_calls > 0 else 0.0
 
@@ -235,12 +246,13 @@ class RedditCollector(DataCollector):
             })
             return True
 
-        except Exception as e:
+        except (PRAWException, ConnectionError, TimeoutError) as e:
             logger.error(f"Reddit health check failed: {str(e)}", extra={
                 "event": "health_check",
                 "api": "reddit",
                 "status": "unhealthy",
-                "error": str(e)
+                "error": str(e),
+                "error_type": type(e).__name__
             })
             return False
 
@@ -251,7 +263,7 @@ class RedditCollector(DataCollector):
             RateLimitInfo with current quota usage
         """
         remaining = self.rate_limiter.get_remaining()
-        reset_at = datetime.utcnow() + timedelta(seconds=60)
+        reset_at = datetime.now(timezone.utc) + timedelta(seconds=60)
 
         return RateLimitInfo(
             limit=60,
