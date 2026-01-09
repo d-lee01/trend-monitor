@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     # External API Keys
     reddit_client_id: Optional[str] = None
     reddit_client_secret: Optional[str] = None
+    reddit_user_agent: str = "trend-monitor:v1.0 (by /u/trendmonitor)"
     youtube_api_key: Optional[str] = None
     similarweb_api_key: Optional[str] = None
     anthropic_api_key: Optional[str] = None
