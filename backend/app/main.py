@@ -8,7 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_db, close_db
-from app.api import auth, admin, debug
+from app.api import auth, admin
+from app.api import debug
 
 
 @asynccontextmanager
