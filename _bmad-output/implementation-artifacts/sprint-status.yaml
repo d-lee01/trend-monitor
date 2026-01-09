@@ -48,7 +48,7 @@ development_status:
   epic-1-retrospective: optional
 
   epic-2: in-progress
-  2-1-api-collector-infrastructure: ready-for-dev
+  2-1-api-collector-infrastructure: review
   2-2-reddit-data-collection: backlog
   2-3-youtube-data-collection: backlog
   2-4-google-trends-data-collection: backlog

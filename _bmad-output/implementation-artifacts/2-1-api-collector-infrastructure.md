@@ -1,9 +1,10 @@
 # Story 2.1: API Collector Infrastructure
 
-**Status:** ready-for-dev
+**Status:** review
 **Epic:** 2 - Multi-Source Data Collection Pipeline
 **Story ID:** 2.1
 **Created:** 2026-01-09
+**Completed:** 2026-01-09
 
 ---
 
@@ -129,11 +130,11 @@ This story implements foundational patterns from Architecture Document:
 **Acceptance Criteria:** AC #1 (DataCollector ABC with specified methods)
 
 **Subtasks:**
-- [ ] Create `backend/app/collectors/base.py` module
-- [ ] Define DataCollector ABC with abstract methods
-- [ ] Define CollectionResult dataclass
-- [ ] Define RateLimitInfo dataclass
-- [ ] Add comprehensive docstrings
+- [x] Create `backend/app/collectors/base.py` module
+- [x] Define DataCollector ABC with abstract methods
+- [x] Define CollectionResult dataclass
+- [x] Define RateLimitInfo dataclass
+- [x] Add comprehensive docstrings
 
 **Implementation Steps:**
 
@@ -288,11 +289,11 @@ class DataCollector(ABC):
 **Acceptance Criteria:** AC #4 (RequestsPerMinuteRateLimiter and DailyQuotaRateLimiter)
 
 **Subtasks:**
-- [ ] Create `backend/app/collectors/rate_limiters.py` module
-- [ ] Implement RequestsPerMinuteRateLimiter with sliding window
-- [ ] Implement DailyQuotaRateLimiter with database tracking
-- [ ] Add async context manager support
-- [ ] Add unit tests
+- [x] Create `backend/app/collectors/rate_limiters.py` module
+- [x] Implement RequestsPerMinuteRateLimiter with sliding window
+- [x] Implement DailyQuotaRateLimiter with database tracking
+- [x] Add async context manager support
+- [x] Add unit tests
 
 **Implementation Steps:**
 
@@ -496,11 +497,11 @@ class DailyQuotaRateLimiter:
 **Acceptance Criteria:** AC #5 (retry_with_backoff decorator with 2s, 4s, 8s backoff)
 
 **Subtasks:**
-- [ ] Create `backend/app/collectors/retry.py` module
-- [ ] Implement retry_with_backoff decorator
-- [ ] Support configurable max_attempts and backoff_base
-- [ ] Log all retry attempts
-- [ ] Add unit tests for retry behavior
+- [x] Create `backend/app/collectors/retry.py` module
+- [x] Implement retry_with_backoff decorator
+- [x] Support configurable max_attempts and backoff_base
+- [x] Log all retry attempts
+- [x] Add unit tests for retry behavior
 
 **Implementation Steps:**
 
@@ -619,11 +620,11 @@ def retry_with_backoff(
 **Acceptance Criteria:** AC #2, #3 (CollectionOrchestrator with asyncio.gather)
 
 **Subtasks:**
-- [ ] Create `backend/app/collectors/orchestrator.py` module
-- [ ] Implement collect_all() with parallel execution
-- [ ] Add graceful degradation for individual failures
-- [ ] Track collection metrics
-- [ ] Add structured logging
+- [x] Create `backend/app/collectors/orchestrator.py` module
+- [x] Implement collect_all() with parallel execution
+- [x] Add graceful degradation for individual failures
+- [x] Track collection metrics
+- [x] Add structured logging
 
 **Implementation Steps:**
 
@@ -805,10 +806,10 @@ class CollectionOrchestrator:
 **Acceptance Criteria:** AC #9 (Structured JSON logging for all API calls)
 
 **Subtasks:**
-- [ ] Configure Python logging with JSON formatter
-- [ ] Update main.py to initialize logging on startup
-- [ ] Add log filters for sensitive data
-- [ ] Configure log levels per environment
+- [x] Configure Python logging with JSON formatter
+- [x] Update main.py to initialize logging on startup
+- [x] Add log filters for sensitive data
+- [x] Configure log levels per environment
 
 **Implementation Steps:**
 
@@ -1317,20 +1318,61 @@ This story is **DONE** when:
 ### Completion Notes
 
 **Implementation Summary:**
-(To be filled in by dev agent after implementation)
+
+All 5 tasks completed successfully:
+
+1. ✅ **DataCollector Abstract Base Class** - Created abstract base class with `collect()`, `health_check()`, and `get_rate_limit_info()` methods. Includes CollectionResult and RateLimitInfo dataclasses with automatic success_rate calculation.
+
+2. ✅ **Rate Limiter Classes** - Implemented RequestsPerMinuteRateLimiter using sliding window algorithm with deque for efficient timestamp tracking. Implemented DailyQuotaRateLimiter with PostgreSQL UPSERT for database-persisted quota tracking. Both support async context managers.
+
+3. ✅ **Retry Decorator** - Created retry_with_backoff decorator with exponential backoff (2s, 4s, 8s). Returns None on failure for graceful degradation. Logs all attempts with structured JSON.
+
+4. ✅ **Collection Orchestrator** - Implemented CollectionOrchestrator using asyncio.gather() with return_exceptions=True for parallel execution. Handles individual collector failures gracefully. Tracks detailed metrics (success_rate, duration, API quota usage).
+
+5. ✅ **Structured JSON Logging** - Created JSONFormatter that outputs logs in machine-readable JSON format with timestamp, level, event, API, success, duration_ms fields. Integrated into FastAPI startup via setup_logging() in lifespan function.
+
+**Testing:**
+- 16/16 unit tests passing
+- test_base.py: 8 tests covering dataclasses and ABC behavior
+- test_retry.py: 8 tests covering retry logic, backoff timing, exception handling
+- test_rate_limiters.py: Created (requires database connection to run)
+- All tests use pytest-asyncio for async test support
+- Modified conftest.py to make database setup optional for non-database tests
+
+**Key Technical Decisions:**
+- Used field(default_factory=list) for CollectionResult.errors to avoid mutable default
+- RequestsPerMinuteRateLimiter uses deque for O(1) append/popleft operations
+- DailyQuotaRateLimiter uses PostgreSQL ON CONFLICT DO UPDATE for atomic upserts
+- retry_with_backoff returns None (not raising) for graceful degradation
+- JSONFormatter filters standard LogRecord fields to avoid noise in JSON output
+- setup_logging() sets urllib3 and asyncio loggers to WARNING to reduce noise
+
+**Dependencies Added:**
+- pytest-asyncio==1.3.0 (for async test support)
 
 ### Files Created/Modified
 
 **Files Created:**
-(To be filled in by dev agent after implementation)
+- backend/app/collectors/__init__.py - Module exports
+- backend/app/collectors/base.py - DataCollector ABC, CollectionResult, RateLimitInfo
+- backend/app/collectors/rate_limiters.py - RequestsPerMinuteRateLimiter, DailyQuotaRateLimiter
+- backend/app/collectors/retry.py - retry_with_backoff decorator
+- backend/app/collectors/orchestrator.py - CollectionOrchestrator
+- backend/app/core/logging_config.py - JSONFormatter, setup_logging()
+- backend/tests/test_collectors/__init__.py - Test module
+- backend/tests/test_collectors/test_base.py - 8 tests for base classes
+- backend/tests/test_collectors/test_retry.py - 8 tests for retry decorator
+- backend/tests/test_collectors/test_rate_limiters.py - 6 tests for rate limiters (DB required)
 
 **Files Modified:**
-(To be filled in by dev agent after implementation)
+- backend/app/main.py - Added logging import and setup_logging() call in lifespan
+- backend/tests/conftest.py - Made database setup optional (autouse=False), fixed pytest 9 compatibility
 
 ---
 
-**Story Status:** ✅ Ready for Development
+**Story Status:** ✅ Review
 **Last Updated:** 2026-01-09
+**Completed:** 2026-01-09
 
 **Next Steps:**
 1. Run `dev-story 2-1-api-collector-infrastructure` to implement

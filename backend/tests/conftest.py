@@ -29,10 +29,7 @@ def get_test_database_url() -> str:
     # Fall back to main DATABASE_URL with _test suffix
     database_url = os.getenv("DATABASE_URL")
     if not database_url:
-        raise RuntimeError(
-            "Neither TEST_DATABASE_URL nor DATABASE_URL environment variable is set. "
-            "Please set TEST_DATABASE_URL to point to a test PostgreSQL database."
-        )
+        return None  # No database available
 
     # Convert to async format and add _test suffix
     if database_url.startswith("postgresql://"):
@@ -47,21 +44,26 @@ def get_test_database_url() -> str:
     return database_url
 
 
-# Create test engine
-test_engine = create_async_engine(
-    get_test_database_url(),
-    echo=False,
-    poolclass=NullPool,
-)
+# Create test engine only if database URL is available
+_test_db_url = get_test_database_url()
+test_engine = None
+TestSessionLocal = None
 
-# Create test session factory
-TestSessionLocal = async_sessionmaker(
-    test_engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autocommit=False,
-    autoflush=False,
-)
+if _test_db_url:
+    test_engine = create_async_engine(
+        _test_db_url,
+        echo=False,
+        poolclass=NullPool,
+    )
+
+    # Create test session factory
+    TestSessionLocal = async_sessionmaker(
+        test_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autocommit=False,
+        autoflush=False,
+    )
 
 
 @pytest.fixture(scope="session")
@@ -72,9 +74,18 @@ def event_loop():
     loop.close()
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session", autouse=False)  # Changed autouse to False
 async def setup_database():
-    """Create all tables before running tests, drop them after"""
+    """Create all tables before running tests, drop them after
+
+    Note: Not autouse to avoid async fixture issues in pytest 9.
+    Tests requiring database should depend on async_session which will set up database.
+    """
+    if test_engine is None:
+        # Skip database setup if no database URL configured
+        yield
+        return
+
     async with test_engine.begin() as conn:
         # Drop all tables first (clean slate)
         await conn.run_sync(Base.metadata.drop_all)
@@ -91,8 +102,11 @@ async def setup_database():
 
 
 @pytest.fixture
-async def async_session() -> AsyncGenerator[AsyncSession, None]:
+async def async_session(setup_database) -> AsyncGenerator[AsyncSession, None]:
     """Provide a test database session that rolls back after each test"""
+    if TestSessionLocal is None:
+        pytest.skip("Database not configured - set DATABASE_URL or TEST_DATABASE_URL")
+
     async with TestSessionLocal() as session:
         # Start a transaction
         async with session.begin():

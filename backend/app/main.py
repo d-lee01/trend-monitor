@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import logging
 
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db, close_db
 from app.api import auth, admin
+from app.core.logging_config import setup_logging
 
 
 @asynccontextmanager
@@ -17,6 +19,12 @@ async def lifespan(app: FastAPI):
     # Startup
     print("=" * 50)
     print("FastAPI: Starting up trend-monitor API")
+
+    # Initialize structured logging
+    setup_logging(debug=settings.debug)
+    logger = logging.getLogger(__name__)
+    logger.info("Structured JSON logging initialized")
+
     print(f"FastAPI: Version {settings.app_version}")
     print(f"FastAPI: Debug mode: {settings.debug}")
     from app.database import engine
