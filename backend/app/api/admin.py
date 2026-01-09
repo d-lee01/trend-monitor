@@ -27,30 +27,38 @@ async def create_user_endpoint(
     This is a temporary endpoint to bootstrap the initial user.
     In production, this should be removed or protected with proper admin auth.
     """
-    # Check if user already exists
-    result = await db.execute(select(User).where(User.username == user_data.username))
-    existing_user = result.scalar_one_or_none()
+    try:
+        # Check if user already exists
+        result = await db.execute(select(User).where(User.username == user_data.username))
+        existing_user = result.scalar_one_or_none()
 
-    if existing_user:
+        if existing_user:
+            return {
+                "status": "exists",
+                "message": f"User '{user_data.username}' already exists",
+                "user_id": str(existing_user.id)
+            }
+
+        # Create new user
+        hashed_password = get_password_hash(user_data.password)
+        user = User(
+            username=user_data.username,
+            password_hash=hashed_password
+        )
+
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+
         return {
-            "status": "exists",
-            "message": f"User '{user_data.username}' already exists",
-            "user_id": str(existing_user.id)
+            "status": "created",
+            "message": f"User '{user_data.username}' created successfully",
+            "user_id": str(user.id)
         }
-
-    # Create new user
-    hashed_password = get_password_hash(user_data.password)
-    user = User(
-        username=user_data.username,
-        password_hash=hashed_password
-    )
-
-    db.add(user)
-    await db.commit()
-    await db.refresh(user)
-
-    return {
-        "status": "created",
-        "message": f"User '{user_data.username}' created successfully",
-        "user_id": str(user.id)
-    }
+    except Exception as e:
+        import traceback
+        return {
+            "status": "error",
+            "message": str(e),
+            "traceback": traceback.format_exc()
+        }
