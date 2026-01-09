@@ -1,9 +1,10 @@
 # Story 1.2: Database Schema Creation
 
-**Status:** review
+**Status:** done
 **Epic:** 1 - Foundation & Authentication
 **Story ID:** 1.2
 **Created:** 2026-01-08
+**Completed:** 2026-01-09
 
 ---
 
