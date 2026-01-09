@@ -572,9 +572,9 @@ cd backend
 alembic revision --autogenerate -m "Initial schema: trends, data_collections, users, api_quota_usage"
 ```
 
-This creates: `backend/alembic/versions/XXXX_initial_schema.py`
+This creates: `backend/alembic/versions/f59d3de35f66_initial_schema_trends_data_collections_.py`
 
-2. **Review generated migration** (backend/alembic/versions/XXXX_initial_schema.py):
+2. **Review generated migration** (backend/alembic/versions/f59d3de35f66_initial_schema_trends_data_collections_.py):
 
 Alembic autogenerate should create something like:
 ```python
@@ -1126,7 +1126,7 @@ backend/
 │   └── schemas/                     # Pydantic schemas (Story 1.3+)
 ├── alembic/                         # NEW: Alembic migrations
 │   ├── versions/
-│   │   └── 001_initial_schema.py    # Initial migration
+│   │   └── f59d3de35f66_initial_schema_trends_data_collections_.py    # Initial migration
 │   ├── env.py                       # Alembic config (async support)
 │   ├── script.py.mako
 │   └── README
@@ -1416,7 +1416,7 @@ Additional commits for verification:
 **Files Created:**
 - backend/alembic.ini - Alembic configuration
 - backend/alembic/env.py - Alembic environment with async support
-- backend/alembic/versions/001_initial_schema.py - Initial migration
+- backend/alembic/versions/f59d3de35f66_initial_schema_trends_data_collections_.py - Initial migration
 - backend/app/models/__init__.py - Models module exports
 - backend/app/models/base.py - Base model with AsyncAttrs
 - backend/app/models/trend.py - Trend model

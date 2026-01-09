@@ -58,7 +58,7 @@ class Trend(Base, UUIDMixin, TimestampMixin):
     momentum_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True, index=True)
     confidence_level: Mapped[Optional[str]] = mapped_column(
         String(10),
-        CheckConstraint("confidence_level IN ('high', 'medium', 'low')", name="valid_confidence"),
+        CheckConstraint("confidence_level IN ('high', 'medium', 'low')", name="ck_trends_valid_confidence"),
         nullable=True,
         index=True
     )

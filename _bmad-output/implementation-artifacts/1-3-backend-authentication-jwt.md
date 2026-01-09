@@ -1,6 +1,6 @@
 # Story 1.3: Backend Authentication with JWT
 
-**Status:** in-progress
+**Status:** complete
 **Epic:** 1 - Foundation & Authentication
 **Story ID:** 1.3
 **Created:** 2026-01-08
