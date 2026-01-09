@@ -19,6 +19,6 @@ WORKDIR /app/backend
 
 # Run user creation, migrations, then start app (Railway sets PORT env var)
 # Use || true pattern to allow steps to fail without crashing the container
-CMD python scripts/create_user.py && \
+CMD (python scripts/create_user.py || echo "User creation skipped - continuing anyway...") && \
     (alembic upgrade head || echo "Migration failed - continuing anyway...") && \
     uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
