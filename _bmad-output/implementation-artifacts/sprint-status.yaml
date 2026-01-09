@@ -44,7 +44,7 @@ development_status:
   1-1-project-setup-railway-deployment: done
   1-2-database-schema-creation: review
   1-3-backend-authentication-jwt: done
-  1-4-frontend-setup-with-login-ui: backlog
+  1-4-frontend-setup-with-login-ui: done
   epic-1-retrospective: optional
 
   epic-2: backlog
