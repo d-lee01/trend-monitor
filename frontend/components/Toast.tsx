@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, ReactNode } from 'react';
+import { useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { ToastContext, ToastMessage, ToastType } from '@/lib/toast';
 
 interface ToastProviderProps {
@@ -9,6 +9,17 @@ interface ToastProviderProps {
 
 export function ToastProvider({ children }: ToastProviderProps) {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const timeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+
+  const removeToast = useCallback((id: string) => {
+    // Clear timeout if it exists
+    const timeoutId = timeoutsRef.current.get(id);
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+      timeoutsRef.current.delete(id);
+    }
+    setToasts((prev) => prev.filter((toast) => toast.id !== id));
+  }, []);
 
   const showToast = useCallback((options: Omit<ToastMessage, 'id'>) => {
     const id = Math.random().toString(36).substring(7);
@@ -22,14 +33,11 @@ export function ToastProvider({ children }: ToastProviderProps) {
     setToasts((prev) => [...prev, toast]);
 
     // Auto-dismiss after duration
-    setTimeout(() => {
+    const timeoutId = setTimeout(() => {
       removeToast(id);
     }, toast.duration);
-  }, []);
-
-  const removeToast = useCallback((id: string) => {
-    setToasts((prev) => prev.filter((toast) => toast.id !== id));
-  }, []);
+    timeoutsRef.current.set(id, timeoutId);
+  }, [removeToast]);
 
   return (
     <ToastContext.Provider value={{ toasts, showToast, removeToast }}>
@@ -119,6 +127,7 @@ function ToastItem({ toast, onClose }: ToastItemProps) {
         {toast.message}
       </p>
       <button
+        type="button"
         onClick={handleClose}
         className="text-gray-400 hover:text-gray-600 transition-colors"
         aria-label="Close notification"

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, APIError } from '@/lib/api';
 import { useToast } from '@/lib/toast';
@@ -18,8 +18,68 @@ export function CollectionButton({ token }: CollectionButtonProps) {
   const [collectionStatus, setCollectionStatus] = useState<CollectionStatus>('idle');
   const [collectionId, setCollectionId] = useState<string | null>(null);
   const [startTime, setStartTime] = useState<number>(0);
+  const isCollectingRef = useRef(false);
   const router = useRouter();
   const { showToast } = useToast();
+
+  const checkCollectionStatus = useCallback(async () => {
+    if (!collectionId) return;
+
+    try {
+      const status = await api.getCollectionStatus(token, collectionId);
+
+      // Check for timeout (30 minutes)
+      const elapsedTime = Date.now() - startTime;
+      if (elapsedTime > MAX_DURATION && status.status === 'in_progress') {
+        isCollectingRef.current = false;
+        showToast({
+          type: 'warning',
+          message: 'Collection taking longer than expected. You can navigate away and return later.',
+          duration: 10000, // Show for 10 seconds
+        });
+        setCollectionStatus('idle');
+        setCollectionId(null);
+        return;
+      }
+
+      if (status.status === 'completed') {
+        isCollectingRef.current = false;
+        setCollectionStatus('success');
+        setCollectionId(null);
+        showToast({
+          type: 'success',
+          message: `✓ Collection complete! Found ${status.trends_found} trends`,
+        });
+        // Trigger Next.js revalidation to refresh dashboard data
+        router.refresh();
+      } else if (status.status === 'failed') {
+        isCollectingRef.current = false;
+        setCollectionStatus('error');
+        setCollectionId(null);
+        showToast({
+          type: 'error',
+          message: '⚠ Collection failed. Some APIs unavailable. Showing partial results.',
+        });
+        // Still refresh to show partial results
+        router.refresh();
+      }
+    } catch (error) {
+      if (error instanceof APIError && error.status === 401) {
+        // Session expired - redirect to login
+        window.location.href = '/?message=Session expired. Please log in again.';
+        return;
+      }
+      // Show error toast for other failures
+      console.error('Error checking collection status:', error);
+      isCollectingRef.current = false;
+      setCollectionStatus('error');
+      setCollectionId(null);
+      showToast({
+        type: 'error',
+        message: 'Failed to check collection status. Please refresh the page.',
+      });
+    }
+  }, [collectionId, token, startTime, router, showToast]);
 
   // Cleanup polling on unmount
   useEffect(() => {
@@ -36,60 +96,13 @@ export function CollectionButton({ token }: CollectionButtonProps) {
         clearInterval(pollingInterval);
       }
     };
-  }, [collectionStatus, collectionId]);
-
-  const checkCollectionStatus = useCallback(async () => {
-    if (!collectionId) return;
-
-    try {
-      const status = await api.getCollectionStatus(token, collectionId);
-
-      // Check for timeout (30 minutes)
-      const elapsedTime = Date.now() - startTime;
-      if (elapsedTime > MAX_DURATION && status.status === 'in_progress') {
-        showToast({
-          type: 'warning',
-          message: 'Collection taking longer than expected. You can navigate away and return later.',
-          duration: 10000, // Show for 10 seconds
-        });
-        setCollectionStatus('idle');
-        setCollectionId(null);
-        return;
-      }
-
-      if (status.status === 'completed') {
-        setCollectionStatus('success');
-        setCollectionId(null);
-        showToast({
-          type: 'success',
-          message: `✓ Collection complete! Found ${status.trends_found} trends`,
-        });
-        // Trigger Next.js revalidation to refresh dashboard data
-        router.refresh();
-      } else if (status.status === 'failed') {
-        setCollectionStatus('error');
-        setCollectionId(null);
-        showToast({
-          type: 'error',
-          message: '⚠ Collection failed. Some APIs unavailable. Showing partial results.',
-        });
-        // Still refresh to show partial results
-        router.refresh();
-      }
-    } catch (error) {
-      if (error instanceof APIError && error.status === 401) {
-        // Session expired - redirect to login
-        window.location.href = '/?message=Session expired. Please log in again.';
-        return;
-      }
-      console.error('Error checking collection status:', error);
-    }
-  }, [collectionId, token, startTime, router, showToast]);
+  }, [collectionStatus, collectionId, checkCollectionStatus]);
 
   const handleCollect = async () => {
-    // Prevent double-submit
-    if (collectionStatus === 'collecting') return;
+    // Prevent double-submit using ref for immediate synchronous check
+    if (isCollectingRef.current || collectionStatus === 'collecting') return;
 
+    isCollectingRef.current = true;
     setCollectionStatus('collecting');
     setStartTime(Date.now());
 
@@ -99,6 +112,7 @@ export function CollectionButton({ token }: CollectionButtonProps) {
 
       // Polling will start automatically via useEffect
     } catch (error) {
+      isCollectingRef.current = false;
       setCollectionStatus('idle');
 
       if (error instanceof APIError) {
