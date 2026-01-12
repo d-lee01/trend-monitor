@@ -61,7 +61,7 @@ development_status:
   3-1-scoring-algorithm-implementation: done
   3-2-score-calculation-integration: done
   3-3-trends-api-endpoints: done
-  3-4-dashboard-ui-trending-now-list: backlog
+  3-4-dashboard-ui-trending-now-list: review
   3-5-manual-collection-trigger-ui: backlog
   3-6-trend-detail-view: backlog
   epic-3-retrospective: optional
