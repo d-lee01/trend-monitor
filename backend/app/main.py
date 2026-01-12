@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_db, close_db
-from app.api import auth, admin, collection
+from app.api import auth, admin, collection, trends
 from app.core.logging_config import setup_logging
 from app.scheduler import init_scheduler, shutdown_scheduler
 
@@ -95,6 +95,7 @@ async def add_security_headers(request, call_next):
 app.include_router(auth.router)
 app.include_router(admin.router)
 app.include_router(collection.router)
+app.include_router(trends.router)
 
 
 @app.get("/")
