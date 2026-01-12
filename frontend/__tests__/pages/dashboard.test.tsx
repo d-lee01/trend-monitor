@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import DashboardPage from '@/app/dashboard/page';
 import { api } from '@/lib/api';
 import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
+import { redirect, useRouter } from 'next/navigation';
 
 // Mock Next.js modules
 jest.mock('next/headers', () => ({
@@ -12,6 +12,7 @@ jest.mock('next/headers', () => ({
 
 jest.mock('next/navigation', () => ({
   redirect: jest.fn(),
+  useRouter: jest.fn(),
 }));
 
 // Mock API client
@@ -19,6 +20,14 @@ jest.mock('@/lib/api', () => ({
   api: {
     getTrends: jest.fn(),
     getLatestCollection: jest.fn(),
+    triggerCollection: jest.fn(),
+    getCollectionStatus: jest.fn(),
+  },
+  APIError: class APIError extends Error {
+    constructor(public status: number, message: string) {
+      super(message);
+      this.name = 'APIError';
+    }
   },
 }));
 
@@ -31,16 +40,34 @@ jest.mock('@/components/TrendCard', () => ({
   ),
 }));
 
+jest.mock('@/components/CollectionButton', () => ({
+  CollectionButton: ({ token }: { token: string }) => (
+    <button>Collect Latest Trends</button>
+  ),
+}));
+
 describe('Dashboard Page', () => {
   const mockCookies = cookies as jest.MockedFunction<typeof cookies>;
   const mockRedirect = redirect as jest.MockedFunction<typeof redirect>;
+  const mockUseRouter = useRouter as jest.Mock;
   const mockGetTrends = api.getTrends as jest.MockedFunction<typeof api.getTrends>;
   const mockGetLatestCollection = api.getLatestCollection as jest.MockedFunction<typeof api.getLatestCollection>;
+
+  const mockRouter = {
+    refresh: jest.fn(),
+    push: jest.fn(),
+    back: jest.fn(),
+    forward: jest.fn(),
+    prefetch: jest.fn(),
+    replace: jest.fn(),
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
     // By default, redirect doesn't throw (for tests that don't test redirect behavior)
     mockRedirect.mockImplementation(() => {});
+    // Mock useRouter for CollectionButton
+    mockUseRouter.mockReturnValue(mockRouter);
   });
 
   it('redirects to login when no auth token present', async () => {
@@ -183,7 +210,7 @@ describe('Dashboard Page', () => {
     expect(screen.getByText(/No trends available yet/i)).toBeInTheDocument();
   });
 
-  it('displays "Collect Latest Trends" button (disabled)', async () => {
+  it('displays "Collect Latest Trends" button', async () => {
     const mockToken = 'valid-jwt-token';
     mockCookies.mockReturnValue({
       get: jest.fn().mockReturnValue({ value: mockToken }),
@@ -197,7 +224,6 @@ describe('Dashboard Page', () => {
 
     const button = screen.getByText('Collect Latest Trends');
     expect(button).toBeInTheDocument();
-    expect(button).toBeDisabled();
-    expect(button).toHaveAttribute('title', 'Collection trigger will be enabled in Story 3.5');
+    expect(button).not.toBeDisabled();
   });
 });

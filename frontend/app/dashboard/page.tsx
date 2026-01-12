@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { TrendCard } from '@/components/TrendCard';
+import { CollectionButton } from '@/components/CollectionButton';
 import { api } from '@/lib/api';
 import { timeAgo } from '@/lib/formatters';
 import { Trend } from '@/lib/types';
@@ -52,6 +53,10 @@ async function getDashboardData() {
 export default async function DashboardPage() {
   const { trends, lastUpdated } = await getDashboardData();
 
+  // Get auth token for CollectionButton
+  const cookieStore = cookies();
+  const token = cookieStore.get('auth_token')?.value || '';
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -65,13 +70,7 @@ export default async function DashboardPage() {
                 Last Updated: {timeAgo(lastUpdated)}
               </span>
             )}
-            <button
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled
-              title="Collection trigger will be enabled in Story 3.5"
-            >
-              Collect Latest Trends
-            </button>
+            <CollectionButton token={token} />
           </div>
         </div>
       </header>

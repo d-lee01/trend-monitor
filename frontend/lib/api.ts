@@ -1,5 +1,5 @@
 // API client for backend communication
-import { Trend, CollectionSummary } from './types';
+import { Trend, CollectionSummary, CollectionResponse, CollectionStatusResponse } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -133,6 +133,90 @@ export const api = {
         throw new APIError(response.status, 'Server error. Please try again later.');
       }
       throw new APIError(response.status, 'Failed to fetch collection');
+    }
+
+    return response.json();
+  },
+
+  /**
+   * Trigger manual data collection
+   * @param token - JWT authentication token
+   * @returns Collection response with collection_id and status
+   * @throws APIError if request fails
+   */
+  async triggerCollection(token: string): Promise<CollectionResponse> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+
+    try {
+      const response = await fetch(`${API_URL}/collect`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        // Provide specific error messages based on status code
+        if (response.status === 401) {
+          throw new APIError(401, 'Authentication failed. Please log in again.');
+        }
+        if (response.status === 409) {
+          throw new APIError(409, 'Collection already in progress. Please wait.');
+        }
+        if (response.status === 429) {
+          throw new APIError(429, 'Rate limit exceeded. Please try again later.');
+        }
+        if (response.status >= 500) {
+          throw new APIError(response.status, 'Server error. Please try again later.');
+        }
+        throw new APIError(response.status, 'Failed to trigger collection');
+      }
+
+      return response.json();
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new APIError(408, 'Request timeout. Please try again.');
+      }
+      throw error;
+    }
+  },
+
+  /**
+   * Get collection status by ID
+   * @param token - JWT authentication token
+   * @param collectionId - UUID of the collection to check
+   * @returns Collection status response
+   * @throws APIError if request fails
+   */
+  async getCollectionStatus(token: string, collectionId: string): Promise<CollectionStatusResponse> {
+    const response = await fetch(`${API_URL}/collections/${collectionId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+    });
+
+    if (!response.ok) {
+      // Provide specific error messages based on status code
+      if (response.status === 401) {
+        throw new APIError(401, 'Authentication failed. Please log in again.');
+      }
+      if (response.status === 404) {
+        throw new APIError(404, 'Collection not found.');
+      }
+      if (response.status === 429) {
+        throw new APIError(429, 'Rate limit exceeded. Please try again later.');
+      }
+      if (response.status >= 500) {
+        throw new APIError(response.status, 'Server error. Please try again later.');
+      }
+      throw new APIError(response.status, 'Failed to fetch collection status');
     }
 
     return response.json();

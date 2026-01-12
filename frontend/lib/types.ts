@@ -21,3 +21,22 @@ export interface CollectionSummary {
   status: 'pending' | 'running' | 'completed' | 'failed';
   trends_found: number;
 }
+
+// Collection response from POST /collect
+export interface CollectionResponse {
+  collection_id: string;
+  status: string;
+  started_at: string;
+  message: string;
+}
+
+// Collection status response from GET /collections/{collection_id}
+export interface CollectionStatusResponse {
+  collection_id: string;
+  status: 'in_progress' | 'completed' | 'failed';
+  started_at: string;
+  completed_at: string | null;
+  trends_found: number;
+  duration_minutes: number;
+  errors: any[];
+}
