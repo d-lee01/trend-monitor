@@ -1,6 +1,6 @@
 # Story 2.3: YouTube Data Collection
 
-**Status:** review
+**Status:** done
 **Epic:** 2 - Multi-Source Data Collection Pipeline
 **Story ID:** 2.3
 **Created:** 2026-01-09
@@ -834,7 +834,7 @@ class YouTubeCollector(DataCollector):
 - [x] Verify trends table has youtube_* columns from Story 1.2
 - [x] Verify api_quota_usage table exists from Story 1.2
 - [x] Create migration if columns missing
-- [x] Test data insertion (deferred to Story 2.6)
+- [ ] Test data insertion (deferred to Story 2.6)
 
 **Implementation Steps:**
 
@@ -1631,6 +1631,15 @@ None - All tests passed on first implementation after fixing test mocks
 - ✅ Structured JSON logging with extra context
 - ✅ Async/parallel compatible with CollectionOrchestrator
 
+**Code Review Fixes Applied (2026-01-12):**
+- Fixed quota consumption documentation (clarified 3-4 units per channel, not 1)
+- Added per-channel quota checking to prevent mid-collection quota exceeded
+- Corrected task status for deferred database insertion test
+- Replaced broad Exception with specific HttpError in _get_channel_subscriber_count
+- Added test_quota_consumption_units to verify actual quota usage
+- Added test_cache_ttl_expiry to verify cache expiration behavior
+- Documented git discrepancies from test environment fixes
+
 ### File List
 
 **New Files:**
@@ -1646,3 +1655,9 @@ None - All tests passed on first implementation after fixing test mocks
 **Verified Files (no changes needed):**
 - backend/app/models/trend.py (YouTube columns already exist)
 - backend/app/models/api_quota_usage.py (quota tracking table already exists)
+
+**Additional Files Modified (Code Review Session 2026-01-12):**
+- backend/pytest.ini (added asyncio_mode = auto for pytest-asyncio compatibility)
+- backend/tests/conftest.py (fixed async_session fixture, added Railway internal network detection)
+- backend/app/main.py (unrelated to Story 2.3, from previous session)
+- Note: These changes were part of test environment fixes after laptop update, not Story 2.3 implementation

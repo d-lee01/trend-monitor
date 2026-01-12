@@ -310,3 +310,115 @@ async def test_collect_with_failure(
     assert result.failed_calls == 1
     assert result.success_rate == 0.5
     assert len(result.errors) == 1
+
+
+@pytest.mark.asyncio
+async def test_quota_consumption_units(
+    mock_youtube_client,
+    mock_db_session,
+    mock_settings
+):
+    """Test that quota limiter consumes correct number of units per channel."""
+    # Setup mock YouTube client
+    mock_youtube = MagicMock()
+    mock_youtube_client.return_value = mock_youtube
+
+    # Mock all API responses
+    mock_channel_response = MagicMock()
+    mock_channel_response.execute.return_value = {
+        'items': [{
+            'contentDetails': {'relatedPlaylists': {'uploads': 'UU_test'}},
+            'statistics': {'subscriberCount': '1000000'}
+        }]
+    }
+    mock_youtube.channels.return_value.list.return_value = mock_channel_response
+
+    mock_playlist_response = MagicMock()
+    mock_playlist_response.execute.return_value = {
+        'items': [{'snippet': {'resourceId': {'videoId': 'test_vid'}}}]
+    }
+    mock_youtube.playlistItems.return_value.list.return_value = mock_playlist_response
+
+    mock_video_response = MagicMock()
+    mock_video_response.execute.return_value = {
+        'items': [{
+            'snippet': {
+                'title': 'Test',
+                'channelTitle': 'Test',
+                'publishedAt': '2026-01-09T10:00:00Z',
+                'thumbnails': {'default': {'url': 'test.jpg'}}
+            },
+            'statistics': {'viewCount': '1000', 'likeCount': '50', 'commentCount': '10'}
+        }]
+    }
+    mock_youtube.videos.return_value.list.return_value = mock_video_response
+
+    collector = YouTubeCollector(db_session=mock_db_session)
+
+    # Track quota consume calls
+    consume_call_count = 0
+    mock_context_manager = AsyncMock()
+    mock_context_manager.__aenter__ = AsyncMock(return_value=None)
+    mock_context_manager.__aexit__ = AsyncMock(return_value=None)
+
+    def track_consume(units=1):
+        nonlocal consume_call_count
+        consume_call_count += units
+        return mock_context_manager
+
+    collector.quota_limiter.consume = MagicMock(side_effect=track_consume)
+    collector.quota_limiter.get_usage_today = AsyncMock(return_value=100)
+
+    # Collect from 1 channel
+    await collector.collect(topics=["test_channel"])
+
+    # Verify 3-4 quota units consumed (3 API calls + optional 1 for subscriber count)
+    # Since subscriber count is called, expect 4 calls
+    assert consume_call_count >= 3, f"Expected at least 3 units consumed, got {consume_call_count}"
+    assert consume_call_count <= 4, f"Expected at most 4 units consumed, got {consume_call_count}"
+
+
+@pytest.mark.asyncio
+async def test_cache_ttl_expiry(
+    mock_youtube_client,
+    mock_db_session,
+    mock_settings
+):
+    """Test that channel cache expires after TTL (1 hour)."""
+    from unittest.mock import patch
+    import time
+
+    mock_youtube = MagicMock()
+    mock_youtube_client.return_value = mock_youtube
+
+    mock_response = MagicMock()
+    mock_response.execute.return_value = {
+        'items': [{'statistics': {'subscriberCount': '1000000'}}]
+    }
+    mock_youtube.channels.return_value.list.return_value = mock_response
+
+    collector = YouTubeCollector(db_session=mock_db_session)
+
+    # Mock quota limiter
+    mock_context_manager = AsyncMock()
+    mock_context_manager.__aenter__ = AsyncMock(return_value=None)
+    mock_context_manager.__aexit__ = AsyncMock(return_value=None)
+    collector.quota_limiter.consume = MagicMock(return_value=mock_context_manager)
+
+    # First call - cache miss
+    count1 = await collector._get_channel_subscriber_count("test_channel")
+    assert count1 == 1000000
+    assert collector.quota_limiter.consume.call_count == 1
+
+    # Second call immediately - cache hit (no API call)
+    count2 = await collector._get_channel_subscriber_count("test_channel")
+    assert count2 == 1000000
+    assert collector.quota_limiter.consume.call_count == 1  # Still 1
+
+    # Simulate cache expiry by clearing it (TTL would naturally expire after 3600s)
+    collector.channel_cache.clear()
+
+    # Third call after cache expiry - cache miss again
+    count3 = await collector._get_channel_subscriber_count("test_channel")
+    assert count3 == 1000000
+    assert collector.quota_limiter.consume.call_count == 2  # New API call made

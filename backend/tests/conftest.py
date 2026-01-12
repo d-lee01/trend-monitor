@@ -31,6 +31,10 @@ def get_test_database_url() -> str:
     if not database_url:
         return None  # No database available
 
+    # Skip database tests if using Railway's internal network (not accessible locally)
+    if "railway.internal" in database_url:
+        return None  # Database not accessible from local machine
+
     # Convert to async format and add _test suffix
     if database_url.startswith("postgresql://"):
         database_url = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
@@ -108,9 +112,64 @@ async def async_session(setup_database) -> AsyncGenerator[AsyncSession, None]:
         pytest.skip("Database not configured - set DATABASE_URL or TEST_DATABASE_URL")
 
     async with TestSessionLocal() as session:
-        # Start a transaction
-        async with session.begin():
+        yield session
+        # Rollback any uncommitted changes to ensure clean state
+        await session.rollback()
+
+
+@pytest.fixture
+async def db_session(async_session):
+    """Alias for async_session to match common naming convention"""
+    return async_session
+
+
+@pytest.fixture
+async def async_client(setup_database):
+    """Provide an async test client for API testing"""
+    from httpx import AsyncClient, ASGITransport
+    from app.main import app
+    from app.database import get_db
+
+    if TestSessionLocal is None:
+        pytest.skip("Database not configured - set DATABASE_URL or TEST_DATABASE_URL")
+
+    # Override get_db dependency to use test database
+    async def override_get_db():
+        async with TestSessionLocal() as session:
             yield session
-            # Rollback happens automatically when context exits
-            # This ensures each test gets a clean database state
-            await session.rollback()
+
+    app.dependency_overrides[get_db] = override_get_db
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver"
+    ) as client:
+        yield client
+
+    # Clean up dependency override
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+async def test_user_token(setup_database):
+    """Create a test user and return a valid JWT token"""
+    from app.models.user import User
+    from app.core.security import get_password_hash, create_access_token
+    from uuid import uuid4
+
+    if TestSessionLocal is None:
+        pytest.skip("Database not configured - set DATABASE_URL or TEST_DATABASE_URL")
+
+    async with TestSessionLocal() as session:
+        # Create test user
+        test_user = User(
+            id=uuid4(),
+            username="testuser",
+            password_hash=get_password_hash("testpassword")
+        )
+        session.add(test_user)
+        await session.commit()
+
+        # Generate token
+        token = create_access_token(data={"sub": test_user.username})
+        return token

@@ -49,13 +49,16 @@ class YouTubeCollector(DataCollector):
     """Collects trending videos from YouTube using Google API Client.
 
     Monitors 20 default trending channels, collecting latest video from each.
-    Uses videos.list endpoint (1 unit/call) to stay within 10K daily quota.
-    Implements channel metadata caching and quota tracking.
+    Uses 3-4 API calls per channel (channels.list, playlistItems.list, videos.list,
+    plus optional cached channels.list for subscriber count).
+    Total quota cost: 60-80 units per collection (3-4 units × 20 channels).
+    Implements channel metadata caching and quota tracking to stay within 10K daily quota.
 
     Example:
         collector = YouTubeCollector(db_session=db)
         result = await collector.collect(topics=DEFAULT_CHANNELS)
         # Returns CollectionResult with 20 videos (1 per channel)
+        # Consumes 60-80 quota units (3-4 per channel)
     """
 
     def __init__(self, db_session: AsyncSession):
@@ -146,13 +149,14 @@ class YouTubeCollector(DataCollector):
 
             return subscriber_count
 
-        except (HttpError, Exception) as e:
+        except HttpError as e:
             logger.error(
                 f"Failed to fetch channel {channel_id}: {str(e)}",
                 extra={
                     "event": "channel_fetch_error",
                     "channel_id": channel_id,
-                    "error": str(e)
+                    "error": str(e),
+                    "status_code": e.resp.status if hasattr(e, 'resp') else None
                 }
             )
             return None
@@ -163,6 +167,9 @@ class YouTubeCollector(DataCollector):
         channel_id: str
     ) -> Optional[Dict[str, Any]]:
         """Fetch latest video from a channel with retry logic.
+
+        Quota cost: 3 API calls (3 units) plus 1 additional call for subscriber
+        count if not cached (4 units total on cache miss, 3 on cache hit).
 
         Args:
             channel_id: YouTube channel ID
@@ -330,6 +337,22 @@ class YouTubeCollector(DataCollector):
 
         # Collect from each channel
         for channel_id in topics:
+            # Check quota before each channel (prevent mid-collection quota exceeded)
+            current_usage = await self.quota_limiter.get_usage_today()
+            if current_usage + 4 > 10000:  # Reserve 4 units per channel (worst case)
+                logger.warning(
+                    f"Stopping collection: insufficient quota ({current_usage}/10,000, need 4 more)",
+                    extra={
+                        "event": "quota_insufficient",
+                        "api": "youtube",
+                        "quota_used": current_usage,
+                        "quota_limit": 10000
+                    }
+                )
+                failed_calls += len(topics) - successful_calls - failed_calls
+                errors.append(f"Stopped early: insufficient quota (used {current_usage}/10,000)")
+                break
+
             call_start = datetime.now(timezone.utc)
 
             try:

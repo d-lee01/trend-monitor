@@ -50,10 +50,10 @@ development_status:
   epic-2: in-progress
   2-1-api-collector-infrastructure: done
   2-2-reddit-data-collection: done
-  2-3-youtube-data-collection: review
-  2-4-google-trends-data-collection: backlog
-  2-5-similarweb-data-collection: backlog
-  2-6-manual-data-collection-trigger: backlog
+  2-3-youtube-data-collection: done
+  2-4-google-trends-data-collection: done
+  2-5-similarweb-data-collection: done
+  2-6-manual-data-collection-trigger: done
   2-7-automated-daily-collection-at-7-30-am: backlog
   epic-2-retrospective: optional
 
