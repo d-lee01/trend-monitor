@@ -59,7 +59,7 @@ development_status:
 
   epic-3: in-progress
   3-1-scoring-algorithm-implementation: done
-  3-2-score-calculation-integration: backlog
+  3-2-score-calculation-integration: done
   3-3-trends-api-endpoints: backlog
   3-4-dashboard-ui-trending-now-list: backlog
   3-5-manual-collection-trigger-ui: backlog
