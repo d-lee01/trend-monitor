@@ -54,7 +54,7 @@ development_status:
   2-4-google-trends-data-collection: done
   2-5-similarweb-data-collection: done
   2-6-manual-data-collection-trigger: done
-  2-7-automated-daily-collection-at-7-30-am: backlog
+  2-7-automated-daily-collection-at-7-30-am: review
   epic-2-retrospective: optional
 
   epic-3: backlog

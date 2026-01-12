@@ -9,8 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_db, close_db
-from app.api import auth, admin
+from app.api import auth, admin, collection
 from app.core.logging_config import setup_logging
+from app.scheduler import init_scheduler, shutdown_scheduler
 
 
 @asynccontextmanager
@@ -32,11 +33,23 @@ async def lifespan(app: FastAPI):
         print("FastAPI: Database connection available")
     else:
         print("FastAPI: WARNING - No database connection (DATABASE_URL not set)")
+
+    # Initialize APScheduler
+    print("FastAPI: Initializing APScheduler...")
+    try:
+        init_scheduler()
+        print("FastAPI: APScheduler initialized - daily collection scheduled for 7:30 AM Pacific")
+    except Exception as e:
+        print(f"FastAPI: WARNING - APScheduler initialization failed: {e}")
+        logger.error(f"APScheduler initialization failed: {e}")
+
     print("=" * 50)
     yield
     # Shutdown
+    print("FastAPI: Shutting down APScheduler...")
+    shutdown_scheduler()
     await close_db()
-    print("FastAPI: Shutting down - database connections closed")
+    print("FastAPI: Shutting down - database connections closed, scheduler stopped")
 
 
 app = FastAPI(
@@ -81,6 +94,7 @@ async def add_security_headers(request, call_next):
 # Include routers
 app.include_router(auth.router)
 app.include_router(admin.router)
+app.include_router(collection.router)
 
 
 @app.get("/")
@@ -90,11 +104,29 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint for Railway and monitoring services"""
+    """Health check endpoint for Railway and monitoring services.
+
+    Includes scheduler status for monitoring automated collection jobs.
+    """
+    from app.scheduler import scheduler
+    from datetime import timezone as tz
+
+    scheduler_info = {
+        "running": scheduler.running,
+        "jobs_count": len(scheduler.get_jobs())
+    }
+
+    # Add next run time if scheduler is running and has jobs
+    if scheduler.running and scheduler.get_jobs():
+        next_run = scheduler.get_jobs()[0].next_run_time
+        if next_run:
+            scheduler_info["next_run"] = next_run.isoformat()
+
     return {
         "status": "healthy",
         "service": settings.app_name + "-api",
-        "version": settings.app_version
+        "version": settings.app_version,
+        "scheduler": scheduler_info
     }
 
 
