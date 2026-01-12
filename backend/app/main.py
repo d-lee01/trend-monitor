@@ -109,18 +109,17 @@ async def health_check():
     Includes scheduler status for monitoring automated collection jobs.
     """
     from app.scheduler import scheduler
-    from datetime import timezone as tz
 
     scheduler_info = {
         "running": scheduler.running,
         "jobs_count": len(scheduler.get_jobs())
     }
 
-    # Add next run time if scheduler is running and has jobs
-    if scheduler.running and scheduler.get_jobs():
-        next_run = scheduler.get_jobs()[0].next_run_time
-        if next_run:
-            scheduler_info["next_run"] = next_run.isoformat()
+    # Add next run time for daily_collection job specifically
+    if scheduler.running:
+        daily_job = next((j for j in scheduler.get_jobs() if j.id == 'daily_collection'), None)
+        if daily_job and daily_job.next_run_time:
+            scheduler_info["next_run"] = daily_job.next_run_time.isoformat()
 
     return {
         "status": "healthy",

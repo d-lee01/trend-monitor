@@ -79,4 +79,4 @@ def shutdown_scheduler():
 
 
 # Register shutdown handler for process exit
-atexit.register(lambda: scheduler.shutdown(wait=False))
+atexit.register(lambda: scheduler.shutdown(wait=False) if scheduler.running else None)

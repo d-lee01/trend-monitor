@@ -417,105 +417,141 @@ async def trigger_daily_collection():
     Prevents duplicate collections and logs all events for monitoring.
     Implements retry logic on failure (see trigger_daily_collection_retry).
     """
-    async for db in get_db():
-        try:
-            # Check for existing in-progress collection
-            stmt = select(DataCollection).where(
-                DataCollection.status == "in_progress"
-            )
-            result = await db.execute(stmt)
-            existing_collection = result.scalar_one_or_none()
+    try:
+        async for db in get_db():
+            try:
+                # Check for existing in-progress collection
+                stmt = select(DataCollection).where(
+                    DataCollection.status == "in_progress"
+                )
+                result = await db.execute(stmt)
+                existing_collection = result.scalar_one_or_none()
 
-            if existing_collection:
-                logger.warning(
-                    "Skipped scheduled collection - previous collection still in progress",
+                if existing_collection:
+                    logger.warning(
+                        "Skipped scheduled collection - previous collection still in progress",
+                        extra={
+                            "event": "scheduled_collection_skipped",
+                            "reason": "in_progress_collection_exists",
+                            "existing_collection_id": str(existing_collection.id),
+                            "existing_started_at": existing_collection.started_at.isoformat(),
+                            "duration_so_far_minutes": (
+                                datetime.now(timezone.utc) - existing_collection.started_at
+                            ).total_seconds() / 60
+                        }
+                    )
+                    return
+
+                # Log scheduled collection start
+                logger.info(
+                    "Starting scheduled daily collection",
                     extra={
-                        "event": "scheduled_collection_skipped",
-                        "reason": "in_progress_collection_exists",
-                        "existing_collection_id": str(existing_collection.id),
-                        "existing_started_at": existing_collection.started_at.isoformat(),
-                        "duration_so_far_minutes": (
-                            datetime.now(timezone.utc) - existing_collection.started_at
-                        ).total_seconds() / 60
+                        "event": "scheduled_collection_start",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "scheduled_time": "07:30 AM Pacific",
+                        "trigger_type": "automated"
                     }
                 )
-                return
 
-            # Log scheduled collection start
-            logger.info(
-                "Starting scheduled daily collection",
-                extra={
-                    "event": "scheduled_collection_start",
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "scheduled_time": "07:30 AM Pacific",
-                    "trigger_type": "automated"
-                }
-            )
+                # Create collection record
+                collection = DataCollection(
+                    id=uuid4(),
+                    started_at=datetime.now(timezone.utc),
+                    status="in_progress"
+                )
+                db.add(collection)
+                await db.commit()
+                await db.refresh(collection)
 
-            # Create collection record
-            collection = DataCollection(
-                id=uuid4(),
-                started_at=datetime.now(timezone.utc),
-                status="in_progress"
-            )
-            db.add(collection)
-            await db.commit()
-            await db.refresh(collection)
+                # Run collection (reuse existing background task)
+                await run_collection(collection.id)
 
-            # Run collection (reuse existing background task)
-            await run_collection(collection.id)
+                # Reset failure count on success
+                await reset_failure_count(db)
 
-            # Reset failure count on success
-            await reset_failure_count(db)
+                logger.info(
+                    "Scheduled daily collection completed successfully",
+                    extra={
+                        "event": "scheduled_collection_complete",
+                        "collection_id": str(collection.id)
+                    }
+                )
 
-            logger.info(
-                "Scheduled daily collection completed successfully",
-                extra={
-                    "event": "scheduled_collection_complete",
-                    "collection_id": str(collection.id)
-                }
-            )
+            except Exception as e:
+                logger.exception(
+                    "Scheduled collection failed with exception",
+                    extra={
+                        "event": "scheduled_collection_failed",
+                        "error": str(e),
+                        "error_type": type(e).__name__
+                    }
+                )
 
-        except Exception as e:
-            logger.exception(
-                "Scheduled collection failed with exception",
-                extra={
-                    "event": "scheduled_collection_failed",
-                    "error": str(e),
-                    "error_type": type(e).__name__
-                }
-            )
+                # Track failure and check alert threshold
+                await increment_failure_count(db)
+                await check_failure_alert_threshold(db)
 
-            # Track failure and check alert threshold
-            await increment_failure_count(db)
-            await check_failure_alert_threshold(db)
+                # Schedule retry job (one-time, 30 minutes from now)
+                from app.scheduler import scheduler
+                from datetime import timedelta
 
-            # Schedule retry job (one-time, 30 minutes from now)
-            from app.scheduler import scheduler
-            from datetime import timedelta
+                retry_time = datetime.now(timezone.utc) + timedelta(minutes=30)
 
-            retry_time = datetime.now(timezone.utc) + timedelta(minutes=30)
+                scheduler.add_job(
+                    func=trigger_daily_collection_retry,
+                    trigger='date',
+                    run_date=retry_time,
+                    id='daily_collection_retry',
+                    name='Retry failed daily collection',
+                    replace_existing=True,  # Replace if retry already scheduled
+                    max_instances=1
+                )
 
-            scheduler.add_job(
-                func=trigger_daily_collection_retry,
-                trigger='date',
-                run_date=retry_time,
-                id='daily_collection_retry',
-                name='Retry failed daily collection',
-                replace_existing=True,  # Replace if retry already scheduled
-                max_instances=1
-            )
+                logger.info(
+                    "Scheduled collection retry",
+                    extra={
+                        "event": "scheduled_collection_retry_scheduled",
+                        "retry_time": retry_time.isoformat(),
+                        "retry_in_minutes": 30
+                    }
+                )
 
-            logger.info(
-                "Scheduled collection retry",
-                extra={
-                    "event": "scheduled_collection_retry_scheduled",
-                    "retry_time": retry_time.isoformat(),
-                    "retry_in_minutes": 30
-                }
-            )
+            break  # Exit async generator after first iteration
+    except Exception as db_error:
+        # Catch database connection failures and other errors not caught in inner try
+        logger.exception(
+            "Scheduled collection failed with database or infrastructure error",
+            extra={
+                "event": "scheduled_collection_infrastructure_failure",
+                "error": str(db_error),
+                "error_type": type(db_error).__name__
+            }
+        )
 
-        break  # Exit async generator after first iteration
+        # Schedule retry even for database failures
+        from app.scheduler import scheduler
+        from datetime import timedelta
+
+        retry_time = datetime.now(timezone.utc) + timedelta(minutes=30)
+
+        scheduler.add_job(
+            func=trigger_daily_collection_retry,
+            trigger='date',
+            run_date=retry_time,
+            id='daily_collection_retry',
+            name='Retry failed daily collection',
+            replace_existing=True,
+            max_instances=1
+        )
+
+        logger.info(
+            "Scheduled collection retry after infrastructure failure",
+            extra={
+                "event": "scheduled_collection_retry_scheduled",
+                "retry_time": retry_time.isoformat(),
+                "retry_in_minutes": 30
+            }
+        )
 
 
 async def trigger_daily_collection_retry():
