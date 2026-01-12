@@ -1,6 +1,6 @@
 # Story 2.7: Automated Daily Collection at 7:30 AM
 
-**Status:** review
+**Status:** done
 **Epic:** 2 - Multi-Source Data Collection Pipeline
 **Story ID:** 2.7
 **Created:** 2026-01-12

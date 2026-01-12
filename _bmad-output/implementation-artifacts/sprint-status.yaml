@@ -47,14 +47,14 @@ development_status:
   1-4-frontend-setup-with-login-ui: done
   epic-1-retrospective: optional
 
-  epic-2: in-progress
+  epic-2: done
   2-1-api-collector-infrastructure: done
   2-2-reddit-data-collection: done
   2-3-youtube-data-collection: done
   2-4-google-trends-data-collection: done
   2-5-similarweb-data-collection: done
   2-6-manual-data-collection-trigger: done
-  2-7-automated-daily-collection-at-7-30-am: review
+  2-7-automated-daily-collection-at-7-30-am: done
   epic-2-retrospective: optional
 
   epic-3: backlog
