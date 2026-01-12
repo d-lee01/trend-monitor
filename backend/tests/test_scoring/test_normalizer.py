@@ -13,14 +13,20 @@ class TestNormalizeRedditScore:
     """Test Reddit velocity score normalization."""
 
     def test_typical_viral_post(self):
-        """Test scoring of typical viral Reddit post."""
+        """Test scoring of typical viral Reddit post.
+
+        Expected calculation:
+        - velocity = 5000 / 2.0 = 2500
+        - authority_weight = log10(1000000) = 6.0
+        - raw_score = 2500 * 6.0 = 15000
+        - normalized = min(100, (15000 / 10000) * 100) = 100.0
+        """
         score = normalize_reddit_score(
             score=5000,
             hours_since_post=2.0,
             subreddit_size=1000000
         )
-        assert 0 <= score <= 100
-        assert score > 50  # Should be "high"
+        assert score == 100.0  # Should hit max score
 
     def test_zero_hours_edge_case(self):
         """Test post just published (near 0 hours)."""
@@ -71,15 +77,22 @@ class TestNormalizeYouTubeTraction:
     """Test YouTube traction score normalization."""
 
     def test_typical_viral_video(self):
-        """Test typical viral YouTube video."""
+        """Test typical viral YouTube video.
+
+        Expected calculation:
+        - velocity = 250000 / 6.0 = 41666.67
+        - engagement_rate = 8000 / 250000 = 0.032
+        - authority_weight = log10(500000) ≈ 5.699
+        - raw_score ≈ 41666.67 * 0.032 * 5.699 ≈ 7597.87
+        - normalized = min(100, (7597.87 / 50000) * 100) ≈ 15.20
+        """
         score = normalize_youtube_traction(
             views=250000,
             hours_since_publish=6.0,
             likes=8000,
             channel_subs=500000
         )
-        assert 0 <= score <= 100
-        assert score > 10  # Realistic threshold for given MAX_YOUTUBE_TRACTION
+        assert 15.19 <= score <= 15.21  # Allow small rounding tolerance
 
     def test_high_engagement_rate(self):
         """Test video with high engagement rate (likes/views)."""
@@ -122,12 +135,19 @@ class TestCalculateGoogleTrendsSpike:
     """Test Google Trends spike detection using Z-score."""
 
     def test_strong_spike_detection(self):
-        """Test detection of strong spike (3 std devs above mean)."""
+        """Test detection of strong spike (3 std devs above mean).
+
+        Expected calculation:
+        - mean([30, 35, 40, 45, 50, 60, 85]) ≈ 49.29
+        - stddev ≈ 18.64
+        - z_score = (85 - 49.29) / 18.64 ≈ 1.92
+        - normalized = ((1.92 + 3) / 6) * 100 ≈ 81.92
+        """
         score = calculate_google_trends_spike(
             current_interest=85,
             seven_day_history=[30, 35, 40, 45, 50, 60, 85]
         )
-        assert score > 70  # Strong spike should score high
+        assert 81.0 <= score <= 83.0  # Strong spike (z-score ≈ 1.92)
 
     def test_no_spike_baseline(self):
         """Test flat interest (no spike)."""
@@ -160,6 +180,21 @@ class TestCalculateGoogleTrendsSpike:
             seven_day_history=[50, 50, 50, 50, 50, 50, 50]
         )
         assert score == 50.0  # Should return baseline
+
+    def test_statistics_error_fallback(self):
+        """Test fallback when statistics calculation fails.
+
+        While StatisticsError is unlikely with valid data, this tests
+        the exception handler for robustness.
+        """
+        # With only 1 data point, stdev can't be calculated
+        # Function should fall back to current_interest
+        score = calculate_google_trends_spike(
+            current_interest=75,
+            seven_day_history=[50]  # Insufficient data
+        )
+        # Should return current_interest when unable to calculate spike
+        assert score == 75.0
 
 
 class TestDetectSimilarWebTrafficSpike:

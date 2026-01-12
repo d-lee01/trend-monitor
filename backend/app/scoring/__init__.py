@@ -26,6 +26,15 @@ Usage:
         reddit_score, youtube_score, google_score, similarweb_spike
     )
 
+    # Import tunable constants for algorithm adjustments
+    from app.scoring import (
+        MAX_REDDIT_VELOCITY,
+        MAX_YOUTUBE_TRACTION,
+        TRAFFIC_SPIKE_THRESHOLD,
+        REDDIT_WEIGHT,
+        SIMILARWEB_BONUS_MULTIPLIER
+    )
+
 References:
     Architecture: AD-5 Scoring Algorithm as Pure Functions
     Epics: Story 3.1 Scoring Algorithm Implementation
@@ -45,6 +54,7 @@ from .constants import (
     MAX_REDDIT_VELOCITY,
     MAX_YOUTUBE_TRACTION,
     GOOGLE_TRENDS_Z_SCORE_RANGE,
+    TRAFFIC_SPIKE_THRESHOLD,
     REDDIT_WEIGHT,
     YOUTUBE_WEIGHT,
     GOOGLE_TRENDS_WEIGHT,
@@ -67,6 +77,7 @@ __all__ = [
     'MAX_REDDIT_VELOCITY',
     'MAX_YOUTUBE_TRACTION',
     'GOOGLE_TRENDS_Z_SCORE_RANGE',
+    'TRAFFIC_SPIKE_THRESHOLD',
     'REDDIT_WEIGHT',
     'YOUTUBE_WEIGHT',
     'GOOGLE_TRENDS_WEIGHT',

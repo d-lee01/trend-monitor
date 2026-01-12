@@ -108,7 +108,8 @@ def calculate_momentum_score_safe(
     """Calculate momentum score with graceful handling of missing data.
 
     Safely handles cases where one or more platform APIs failed to
-    collect data. Calculates score using only available platforms.
+    collect data. Calculates score using renormalized weights based on
+    available platforms.
 
     Args:
         reddit_velocity: Reddit velocity score (0-100) or None if unavailable
@@ -120,15 +121,16 @@ def calculate_momentum_score_safe(
         Tuple of (momentum_score, confidence_level)
 
     Graceful Degradation:
-        - If 3 platforms available: Calculate with 3 (adjust weights)
-        - If 2 platforms available: Calculate with 2 (adjust weights)
-        - If 1 platform available: Use that score directly
+        - Weights are renormalized based on available platforms
+        - If Reddit + YouTube + Google: Use original weights (0.33, 0.33, 0.34)
+        - If 2 platforms available: Renormalize their weights to sum to 1.0
+        - If 1 platform available: Use that score directly (weight = 1.0)
         - If 0 platforms available: Return (0.0, 'unknown')
 
     Example:
         >>> calculate_momentum_score_safe(reddit_velocity=75.0, youtube_traction=None,
         ...                               google_trends_spike=80.0, similarweb_traffic_spike=False)
-        (77.5, 'medium')  # Only Reddit + Google Trends available
+        (77.5, 'medium')  # Weights renormalized: Reddit=0.49, Google=0.51
 
         >>> calculate_momentum_score_safe(reddit_velocity=None, youtube_traction=None,
         ...                               google_trends_spike=None, similarweb_traffic_spike=False)
@@ -136,27 +138,30 @@ def calculate_momentum_score_safe(
 
     Note:
         This function enables graceful degradation per AD-9 architecture requirement.
-        Collection continues even if individual APIs fail.
+        Renormalized weights maintain the proportional contribution of each platform.
 
     References:
         [Architecture: AD-9 Error Handling and Graceful Degradation]
         [Epics: Story 2.1 Graceful Degradation Requirements]
     """
-    # Collect available scores
-    available_scores = []
+    # Build list of (score, weight) tuples for available platforms
+    available_platforms = []
     if reddit_velocity is not None:
-        available_scores.append(reddit_velocity)
+        available_platforms.append((reddit_velocity, REDDIT_WEIGHT))
     if youtube_traction is not None:
-        available_scores.append(youtube_traction)
+        available_platforms.append((youtube_traction, YOUTUBE_WEIGHT))
     if google_trends_spike is not None:
-        available_scores.append(google_trends_spike)
+        available_platforms.append((google_trends_spike, GOOGLE_TRENDS_WEIGHT))
 
     # Edge case: No platform data available
-    if len(available_scores) == 0:
+    if len(available_platforms) == 0:
         return (0.0, 'unknown')
 
-    # Calculate average of available scores
-    base_score = sum(available_scores) / len(available_scores)
+    # Calculate total weight of available platforms
+    total_weight = sum(weight for _, weight in available_platforms)
+
+    # Calculate weighted average with renormalized weights
+    base_score = sum(score * (weight / total_weight) for score, weight in available_platforms)
 
     # Apply SimilarWeb bonus if applicable
     if similarweb_traffic_spike:

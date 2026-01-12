@@ -114,3 +114,33 @@ class TestCalculateMomentumScoreSafe:
         )
         # With no base scores, SimilarWeb bonus has nothing to multiply
         assert score == 0.0
+
+    def test_similarweb_bonus_with_missing_platform(self):
+        """Test SimilarWeb bonus applied when one platform is missing."""
+        score_without_bonus, _ = calculate_momentum_score_safe(
+            reddit_velocity=60.0,
+            youtube_traction=None,  # YouTube missing
+            google_trends_spike=70.0,
+            similarweb_traffic_spike=False
+        )
+        score_with_bonus, _ = calculate_momentum_score_safe(
+            reddit_velocity=60.0,
+            youtube_traction=None,  # YouTube missing
+            google_trends_spike=70.0,
+            similarweb_traffic_spike=True
+        )
+        # Bonus should multiply the base score by 1.5 (allow small rounding error)
+        expected = score_without_bonus * 1.5
+        assert abs(score_with_bonus - expected) < 0.01
+
+    def test_high_confidence_with_missing_platform(self):
+        """Test high confidence when 3 strong signals present (one platform missing)."""
+        score, confidence = calculate_momentum_score_safe(
+            reddit_velocity=85.0,  # Strong signal
+            youtube_traction=None,  # Missing
+            google_trends_spike=90.0,  # Strong signal
+            similarweb_traffic_spike=True  # Strong signal
+        )
+        # 3 out of 4 signals strong = high confidence
+        assert confidence == 'high'
+        assert score > 100  # Should have SimilarWeb bonus applied

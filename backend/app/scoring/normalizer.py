@@ -10,7 +10,8 @@ from typing import List, Optional
 from .constants import (
     MAX_REDDIT_VELOCITY,
     MAX_YOUTUBE_TRACTION,
-    GOOGLE_TRENDS_Z_SCORE_RANGE
+    GOOGLE_TRENDS_Z_SCORE_RANGE,
+    TRAFFIC_SPIKE_THRESHOLD
 )
 
 
@@ -273,7 +274,5 @@ def detect_similarweb_traffic_spike(
     """
     if traffic_change_percentage is None:
         return False
-
-    TRAFFIC_SPIKE_THRESHOLD = 50.0  # 50% increase threshold
 
     return traffic_change_percentage > TRAFFIC_SPIKE_THRESHOLD
