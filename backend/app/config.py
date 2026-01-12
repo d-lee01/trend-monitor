@@ -31,7 +31,10 @@ class Settings(BaseSettings):
     youtube_api_service_name: str = "youtube"
     youtube_api_version: str = "v3"
 
+    # SimilarWeb API
     similarweb_api_key: Optional[str] = None
+    similarweb_api_base_url: str = "https://api.similarweb.com/v1"
+
     anthropic_api_key: Optional[str] = None
 
     # Application

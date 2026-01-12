@@ -1,7 +1,7 @@
 installation:
-  version: 6.0.0-alpha.22
-  installDate: 2026-01-07T12:12:53.267Z
-  lastUpdated: 2026-01-07T12:12:53.267Z
+  version: 6.0.0-alpha.23
+  installDate: 2026-01-12T09:31:44.312Z
+  lastUpdated: 2026-01-12T09:31:44.312Z
 modules:
   - core
   - bmm

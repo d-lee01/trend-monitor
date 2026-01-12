@@ -37,54 +37,73 @@ async def get_top_trends(
     """
     start_time = datetime.now(timezone.utc)
 
-    # Get latest completed collection
-    collection_stmt = select(DataCollection).where(
-        DataCollection.status == "completed"
-    ).order_by(
-        desc(DataCollection.completed_at)
-    ).limit(1)
+    try:
+        # Get latest completed collection
+        collection_stmt = select(DataCollection).where(
+            DataCollection.status == "completed"
+        ).order_by(
+            desc(DataCollection.completed_at)
+        ).limit(1)
 
-    collection_result = await db.execute(collection_stmt)
-    collection = collection_result.scalar_one_or_none()
+        collection_result = await db.execute(collection_stmt)
+        collection = collection_result.scalar_one_or_none()
 
-    if not collection:
+        if not collection:
+            logger.warning(
+                "No completed collections found",
+                extra={
+                    "event": "trends_not_found",
+                    "user": current_user.username
+                }
+            )
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No completed collections found"
+            )
+
+        # Get top 10 trends from latest collection
+        trends_stmt = select(Trend).where(
+            Trend.collection_id == collection.id
+        ).order_by(
+            desc(Trend.momentum_score)
+        ).limit(10)
+
+        trends_result = await db.execute(trends_stmt)
+        trends = trends_result.scalars().all()
+
+        # Calculate duration
+        duration = (datetime.now(timezone.utc) - start_time).total_seconds()
+
         logger.info(
-            "No completed collections found",
+            "Trends retrieved",
             extra={
                 "event": "trends_retrieved",
                 "user": current_user.username,
-                "trends_count": 0,
-                "duration_ms": 0
+                "collection_id": str(collection.id),
+                "trends_count": len(trends),
+                "top_momentum": trends[0].momentum_score if trends else 0,
+                "duration_ms": round(duration * 1000, 2)
             }
         )
-        return []
 
-    # Get top 10 trends from latest collection
-    trends_stmt = select(Trend).where(
-        Trend.collection_id == collection.id
-    ).order_by(
-        desc(Trend.momentum_score)
-    ).limit(10)
+        return trends
 
-    trends_result = await db.execute(trends_stmt)
-    trends = trends_result.scalars().all()
-
-    # Calculate duration
-    duration = (datetime.now(timezone.utc) - start_time).total_seconds()
-
-    logger.info(
-        "Trends retrieved",
-        extra={
-            "event": "trends_retrieved",
-            "user": current_user.username,
-            "collection_id": str(collection.id),
-            "trends_count": len(trends),
-            "top_momentum": trends[0].momentum_score if trends else 0,
-            "duration_ms": round(duration * 1000, 2)
-        }
-    )
-
-    return trends
+    except HTTPException:
+        # Re-raise HTTP exceptions (404, 401, etc.)
+        raise
+    except Exception as e:
+        logger.error(
+            "Failed to retrieve trends",
+            extra={
+                "event": "trends_retrieval_failed",
+                "user": current_user.username,
+                "error": str(e)
+            }
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Failed to retrieve trends due to database error"
+        )
 
 
 @router.get("/{trend_id}", response_model=TrendDetailResponse)
@@ -109,40 +128,59 @@ async def get_trend_by_id(
     """
     start_time = datetime.now(timezone.utc)
 
-    # Query trend by ID
-    stmt = select(Trend).where(Trend.id == trend_id)
-    result = await db.execute(stmt)
-    trend = result.scalar_one_or_none()
+    try:
+        # Query trend by ID
+        stmt = select(Trend).where(Trend.id == trend_id)
+        result = await db.execute(stmt)
+        trend = result.scalar_one_or_none()
 
-    if not trend:
-        logger.warning(
-            "Trend not found",
+        if not trend:
+            logger.warning(
+                "Trend not found",
+                extra={
+                    "event": "trend_not_found",
+                    "user": current_user.username,
+                    "trend_id": str(trend_id)
+                }
+            )
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Trend not found"
+            )
+
+        # Calculate duration
+        duration = (datetime.now(timezone.utc) - start_time).total_seconds()
+
+        logger.info(
+            "Trend detail retrieved",
             extra={
-                "event": "trend_not_found",
+                "event": "trend_detail_retrieved",
                 "user": current_user.username,
-                "trend_id": str(trend_id)
+                "trend_id": str(trend_id),
+                "momentum_score": trend.momentum_score,
+                "duration_ms": round(duration * 1000, 2)
+            }
+        )
+
+        return trend
+
+    except HTTPException:
+        # Re-raise HTTP exceptions (404, 401, etc.)
+        raise
+    except Exception as e:
+        logger.error(
+            "Failed to retrieve trend detail",
+            extra={
+                "event": "trend_detail_retrieval_failed",
+                "user": current_user.username,
+                "trend_id": str(trend_id),
+                "error": str(e)
             }
         )
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Trend not found"
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Failed to retrieve trend due to database error"
         )
-
-    # Calculate duration
-    duration = (datetime.now(timezone.utc) - start_time).total_seconds()
-
-    logger.info(
-        "Trend detail retrieved",
-        extra={
-            "event": "trend_detail_retrieved",
-            "user": current_user.username,
-            "trend_id": str(trend_id),
-            "momentum_score": trend.momentum_score,
-            "duration_ms": round(duration * 1000, 2)
-        }
-    )
-
-    return trend
 
 
 @router.get("/collections/latest", response_model=CollectionSummaryResponse)
@@ -163,59 +201,77 @@ async def get_latest_collection(
     """
     start_time = datetime.now(timezone.utc)
 
-    # Get latest completed collection with trends count
-    collection_stmt = select(
-        DataCollection,
-        func.count(Trend.id).label("trends_found")
-    ).outerjoin(
-        Trend, Trend.collection_id == DataCollection.id
-    ).where(
-        DataCollection.status == "completed"
-    ).group_by(
-        DataCollection.id
-    ).order_by(
-        desc(DataCollection.completed_at)
-    ).limit(1)
+    try:
+        # Get latest completed collection with trends count
+        collection_stmt = select(
+            DataCollection,
+            func.count(Trend.id).label("trends_found")
+        ).outerjoin(
+            Trend, Trend.collection_id == DataCollection.id
+        ).where(
+            DataCollection.status == "completed"
+        ).group_by(
+            DataCollection.id
+        ).order_by(
+            desc(DataCollection.completed_at)
+        ).limit(1)
 
-    result = await db.execute(collection_stmt)
-    row = result.first()
+        result = await db.execute(collection_stmt)
+        row = result.first()
 
-    if not row:
-        logger.warning(
-            "No completed collections found",
+        if not row:
+            logger.warning(
+                "No completed collections found",
+                extra={
+                    "event": "latest_collection_not_found",
+                    "user": current_user.username
+                }
+            )
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No completed collections found"
+            )
+
+        collection, trends_found = row
+
+        # Calculate duration
+        duration = (datetime.now(timezone.utc) - start_time).total_seconds()
+
+        logger.info(
+            "Latest collection retrieved",
             extra={
-                "event": "latest_collection_not_found",
-                "user": current_user.username
+                "event": "latest_collection_retrieved",
+                "user": current_user.username,
+                "collection_id": str(collection.id),
+                "trends_found": trends_found,
+                "duration_ms": round(duration * 1000, 2)
+            }
+        )
+
+        # Create response with trends_found
+        response = CollectionSummaryResponse(
+            id=collection.id,
+            started_at=collection.started_at,
+            completed_at=collection.completed_at,
+            status=collection.status,
+            trends_found=trends_found
+        )
+
+        return response
+
+    except HTTPException:
+        # Re-raise HTTP exceptions (404, 401, etc.)
+        raise
+    except Exception as e:
+        logger.error(
+            "Failed to retrieve latest collection",
+            extra={
+                "event": "latest_collection_retrieval_failed",
+                "user": current_user.username,
+                "error": str(e)
             }
         )
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No completed collections found"
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Failed to retrieve collection due to database error"
         )
-
-    collection, trends_found = row
-
-    # Calculate duration
-    duration = (datetime.now(timezone.utc) - start_time).total_seconds()
-
-    logger.info(
-        "Latest collection retrieved",
-        extra={
-            "event": "latest_collection_retrieved",
-            "user": current_user.username,
-            "collection_id": str(collection.id),
-            "trends_found": trends_found,
-            "duration_ms": round(duration * 1000, 2)
-        }
-    )
-
-    # Create response with trends_found
-    response = CollectionSummaryResponse(
-        id=collection.id,
-        started_at=collection.started_at,
-        completed_at=collection.completed_at,
-        status=collection.status,
-        trends_found=trends_found
-    )
-
-    return response

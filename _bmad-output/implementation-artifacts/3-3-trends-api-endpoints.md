@@ -345,8 +345,7 @@ backend/
   "started_at": "2026-01-12T07:30:00Z",
   "completed_at": "2026-01-12T07:52:34Z",
   "status": "completed",
-  "trends_found": 47,
-  "duration_minutes": 22.57
+  "trends_found": 47
 }
 ```
 

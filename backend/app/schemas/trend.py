@@ -69,9 +69,9 @@ class TrendDetailResponse(BaseModel):
     google_trends_spike_score: Optional[float] = Field(None, description="Google Trends spike score (0-100)")
     similarweb_bonus_applied: Optional[bool] = Field(None, description="Whether SimilarWeb traffic spike bonus was applied")
 
-    # Composite scores
-    momentum_score: Optional[float] = Field(None, description="Composite cross-platform momentum score")
-    confidence_level: Optional[str] = Field(None, description="Confidence level: 'high' | 'medium' | 'low'")
+    # Composite scores (required - calculated in Story 3.2)
+    momentum_score: float = Field(..., description="Composite cross-platform momentum score")
+    confidence_level: str = Field(..., description="Confidence level: 'high' | 'medium' | 'low'")
 
     # AI-generated content
     ai_brief: Optional[str] = Field(None, description="AI-generated trend explanation (Story 4.1)")

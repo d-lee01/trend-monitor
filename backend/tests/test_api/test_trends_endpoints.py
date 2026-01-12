@@ -56,15 +56,15 @@ async def test_get_trends_returns_top_10_sorted(async_client: AsyncClient, db_se
 
 
 @pytest.mark.asyncio
-async def test_get_trends_returns_empty_when_no_collections(async_client: AsyncClient, test_user_token: str):
-    """Test GET /trends returns empty list when no completed collections exist."""
+async def test_get_trends_returns_404_when_no_collections(async_client: AsyncClient, test_user_token: str):
+    """Test GET /trends returns 404 when no completed collections exist."""
     response = await async_client.get(
         "/trends",
         headers={"Authorization": f"Bearer {test_user_token}"}
     )
 
-    assert response.status_code == 200
-    assert response.json() == []
+    assert response.status_code == 404
+    assert "no completed collections" in response.json()["detail"].lower()
 
 
 @pytest.mark.asyncio
