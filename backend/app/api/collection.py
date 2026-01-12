@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from uuid import UUID, uuid4
 from datetime import datetime, timezone
-from typing import Dict
+from typing import Dict, Union
 
 from app.database import get_db
 from app.core.dependencies import get_current_user
@@ -20,6 +20,14 @@ from app.collectors.similarweb_collector import SimilarWebCollector
 from app.collectors.orchestrator import CollectionOrchestrator
 from app.collectors.base import CollectionResult
 from app.collectors.topics import DEFAULT_TOPICS
+from app.scoring import (
+    normalize_reddit_score,
+    normalize_youtube_traction,
+    calculate_google_trends_spike,
+    calculate_momentum_score,
+    calculate_momentum_score_safe
+)
+from app.scoring.constants import DEFAULT_SUBREDDIT_SIZE, DEFAULT_CHANNEL_SUBSCRIBERS
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +111,260 @@ async def store_trends(
             "trends_stored": trends_stored
         }
     )
+
+
+async def calculate_and_update_scores(
+    collection_id: UUID,
+    db: AsyncSession
+) -> Dict[str, Union[int, float]]:
+    """Calculate and update momentum scores for all trends in a collection.
+
+    This function is called after data collection completes. It applies
+    the scoring algorithms from app.scoring to normalize platform metrics
+    and calculate cross-platform momentum scores.
+
+    Handles graceful degradation when platform APIs fail (missing data).
+    Uses calculate_momentum_score_safe() to score with available platforms.
+
+    Args:
+        collection_id: UUID of the completed data collection
+        db: Database session for loading trends and updating scores
+
+    Returns:
+        dict: Summary with trends_scored count and duration_seconds
+
+    Example:
+        >>> result = await calculate_and_update_scores(collection_id, db)
+        >>> result
+        {'trends_scored': 47, 'duration_seconds': 3.2, 'degraded_count': 5}
+
+    References:
+        [Source: app/scoring/__init__.py - Scoring algorithms]
+        [Story: 3.1 - Scoring Algorithm Implementation]
+        [Architecture: AD-5 Scoring Algorithm as Pure Functions]
+    """
+    start_time = datetime.now(timezone.utc)
+
+    logger.info(
+        "Starting score calculation",
+        extra={
+            "event": "scoring_start",
+            "collection_id": str(collection_id)
+        }
+    )
+
+    # Validate collection exists
+    collection_stmt = select(DataCollection).where(DataCollection.id == collection_id)
+    collection_result = await db.execute(collection_stmt)
+    collection = collection_result.scalar_one_or_none()
+
+    if not collection:
+        logger.error(
+            "Collection not found for scoring",
+            extra={
+                "event": "scoring_collection_not_found",
+                "collection_id": str(collection_id)
+            }
+        )
+        raise ValueError(f"Collection {collection_id} does not exist")
+
+    # Load all trends for this collection
+    # Note: Loading all trends at once is acceptable for MVP scale (~50-100 trends per collection)
+    # For future scaling beyond 1000+ trends, consider batch processing
+    result = await db.execute(
+        select(Trend).where(Trend.collection_id == collection_id)
+    )
+    trends = result.scalars().all()
+
+    if not trends:
+        logger.warning(
+            "No trends found for collection",
+            extra={
+                "event": "scoring_no_trends",
+                "collection_id": str(collection_id)
+            }
+        )
+        return {"trends_scored": 0, "duration_seconds": 0.0, "degraded_count": 0}
+
+    degraded_count = 0  # Track trends scored with missing data
+
+    for trend in trends:
+        # Calculate time deltas for velocity calculations
+        hours_since_post = None
+        hours_since_publish = None
+
+        if trend.reddit_score is not None and trend.created_at:
+            hours_since_post = (datetime.now(timezone.utc) - trend.created_at).total_seconds() / 3600
+
+        # LIMITATION: Using trend.created_at for YouTube velocity calculation
+        # Ideally should use actual youtube_published_at timestamp from API
+        # For MVP, this provides approximate velocity (time since we discovered it)
+        # Phase 2: Store youtube_published_at in Trend model for accurate calculation
+        if trend.youtube_views is not None and trend.created_at:
+            hours_since_publish = (datetime.now(timezone.utc) - trend.created_at).total_seconds() / 3600
+
+        # Calculate individual platform scores
+        reddit_velocity_score = None
+        youtube_traction_score = None
+        google_trends_spike_score = None
+
+        # Reddit normalization (if data available)
+        if trend.reddit_score is not None and hours_since_post is not None:
+            try:
+                reddit_velocity_score = normalize_reddit_score(
+                    score=trend.reddit_score,
+                    hours_since_post=hours_since_post,
+                    subreddit_size=DEFAULT_SUBREDDIT_SIZE
+                )
+                trend.reddit_velocity_score = reddit_velocity_score
+            except Exception as e:
+                logger.error(
+                    "Reddit scoring failed",
+                    extra={
+                        "event": "scoring_reddit_failed",
+                        "trend_id": str(trend.id),
+                        "error": str(e)
+                    }
+                )
+                reddit_velocity_score = None
+
+        # YouTube normalization (if data available)
+        if all([
+            trend.youtube_views is not None,
+            hours_since_publish is not None,
+            trend.youtube_likes is not None
+        ]):
+            try:
+                youtube_traction_score = normalize_youtube_traction(
+                    views=trend.youtube_views,
+                    hours_since_publish=hours_since_publish,
+                    likes=trend.youtube_likes,
+                    channel_subs=DEFAULT_CHANNEL_SUBSCRIBERS
+                )
+                trend.youtube_traction_score = youtube_traction_score
+            except Exception as e:
+                logger.error(
+                    "YouTube scoring failed",
+                    extra={
+                        "event": "scoring_youtube_failed",
+                        "trend_id": str(trend.id),
+                        "error": str(e)
+                    }
+                )
+                youtube_traction_score = None
+
+        # Google Trends spike detection (if data available)
+        if trend.google_trends_interest is not None:
+            try:
+                # Load 7-day historical data from JSONB column if available
+                # If not available, use simple baseline for MVP
+                if trend.google_trends_related_queries and isinstance(trend.google_trends_related_queries, dict):
+                    seven_day_history = trend.google_trends_related_queries.get(
+                        'seven_day_history',
+                        [50, 55, 60, 65, 70, 75, trend.google_trends_interest]
+                    )
+                else:
+                    # Fallback: Use linear progression baseline
+                    # Phase 2: Google Trends collector should store actual 7-day history in JSONB
+                    seven_day_history = [50, 55, 60, 65, 70, 75, trend.google_trends_interest]
+
+                google_trends_spike_score = calculate_google_trends_spike(
+                    current_interest=trend.google_trends_interest,
+                    seven_day_history=seven_day_history
+                )
+                trend.google_trends_spike_score = google_trends_spike_score
+            except Exception as e:
+                logger.error(
+                    "Google Trends scoring failed",
+                    extra={
+                        "event": "scoring_google_trends_failed",
+                        "trend_id": str(trend.id),
+                        "error": str(e)
+                    }
+                )
+                google_trends_spike_score = None
+
+        # SimilarWeb traffic spike (already stored as boolean)
+        similarweb_traffic_spike = trend.similarweb_bonus_applied or False
+
+        # Calculate composite momentum score
+        platforms_missing = sum([
+            reddit_velocity_score is None,
+            youtube_traction_score is None,
+            google_trends_spike_score is None
+        ])
+
+        try:
+            if platforms_missing > 0:
+                # Use safe function for graceful degradation
+                momentum_score, confidence_level = calculate_momentum_score_safe(
+                    reddit_velocity=reddit_velocity_score,
+                    youtube_traction=youtube_traction_score,
+                    google_trends_spike=google_trends_spike_score,
+                    similarweb_traffic_spike=similarweb_traffic_spike
+                )
+                degraded_count += 1
+                logger.warning(
+                    "Trend scored with missing platforms",
+                    extra={
+                        "event": "scoring_degraded",
+                        "trend_id": str(trend.id),
+                        "platforms_missing": platforms_missing,
+                        "confidence": confidence_level
+                    }
+                )
+            else:
+                # All platforms available - use standard function
+                momentum_score, confidence_level = calculate_momentum_score(
+                    reddit_velocity=reddit_velocity_score,
+                    youtube_traction=youtube_traction_score,
+                    google_trends_spike=google_trends_spike_score,
+                    similarweb_traffic_spike=similarweb_traffic_spike
+                )
+
+            # Update trend with calculated scores
+            trend.momentum_score = momentum_score
+            # Database CHECK constraint only allows 'high', 'medium', 'low'
+            # Map 'unknown' to 'low' for database compatibility
+            trend.confidence_level = confidence_level if confidence_level != 'unknown' else 'low'
+
+        except Exception as e:
+            logger.error(
+                "Momentum score calculation failed",
+                extra={
+                    "event": "scoring_momentum_failed",
+                    "trend_id": str(trend.id),
+                    "error": str(e)
+                }
+            )
+            # Set defaults for failed calculation
+            trend.momentum_score = 0.0
+            trend.confidence_level = 'low'
+
+    # Batch commit all updates
+    await db.commit()
+
+    # Calculate duration
+    end_time = datetime.now(timezone.utc)
+    duration_seconds = (end_time - start_time).total_seconds()
+
+    # Log completion
+    logger.info(
+        "Scoring complete",
+        extra={
+            "event": "scoring_complete",
+            "collection_id": str(collection_id),
+            "trends_scored": len(trends),
+            "duration_seconds": round(duration_seconds, 2),
+            "degraded_count": degraded_count
+        }
+    )
+
+    return {
+        "trends_scored": len(trends),
+        "duration_seconds": round(duration_seconds, 2),
+        "degraded_count": degraded_count
+    }
 
 
 async def update_collection_status(
@@ -279,6 +541,9 @@ async def run_collection(collection_id: UUID):
             # Store trends
             await store_trends(db, collection_id, results)
 
+            # Calculate and update scores
+            scoring_result = await calculate_and_update_scores(collection_id, db)
+
             # Update collection status
             await update_collection_status(db, collection_id, results, start_time)
 
@@ -292,11 +557,14 @@ async def run_collection(collection_id: UUID):
             duration = (datetime.now(timezone.utc) - start_time).total_seconds() / 60
 
             logger.info(
-                f"Collection complete: {total_trends} trends found",
+                f"Collection complete: {total_trends} trends found, {scoring_result['trends_scored']} scored",
                 extra={
                     "event": "manual_collection_complete",
                     "collection_id": str(collection_id),
                     "trends_found": total_trends,
+                    "trends_scored": scoring_result['trends_scored'],
+                    "scoring_duration_seconds": scoring_result['duration_seconds'],
+                    "degraded_scoring_count": scoring_result['degraded_count'],
                     "duration_minutes": round(duration, 2),
                     "api_success_rates": {
                         source: result.success_rate

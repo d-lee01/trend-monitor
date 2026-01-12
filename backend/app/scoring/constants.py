@@ -21,3 +21,9 @@ SIMILARWEB_BONUS_MULTIPLIER = 1.5
 
 # Confidence thresholds
 SIGNAL_PRESENCE_THRESHOLD = 50.0  # Score > 50 counts as "signal present"
+
+# Default authority weights (used when actual values unavailable from API)
+# These represent "established community" and "active creator" baselines
+# In production, collectors should fetch actual values from Reddit/YouTube APIs
+DEFAULT_SUBREDDIT_SIZE = 1000000  # Median large subreddit (~1M subscribers)
+DEFAULT_CHANNEL_SUBSCRIBERS = 100000  # Median active channel (~100K subs)
