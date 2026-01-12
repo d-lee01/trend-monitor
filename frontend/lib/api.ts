@@ -80,6 +80,19 @@ export const api = {
     }
 
     if (!response.ok) {
+      // Provide specific error messages based on status code
+      if (response.status === 401) {
+        throw new APIError(401, 'Authentication failed. Please log in again.');
+      }
+      if (response.status === 403) {
+        throw new APIError(403, 'Access forbidden. You do not have permission to view trends.');
+      }
+      if (response.status === 429) {
+        throw new APIError(429, 'Rate limit exceeded. Please try again later.');
+      }
+      if (response.status >= 500) {
+        throw new APIError(response.status, 'Server error. Please try again later.');
+      }
       throw new APIError(response.status, 'Failed to fetch trends');
     }
 
@@ -106,6 +119,19 @@ export const api = {
     }
 
     if (!response.ok) {
+      // Provide specific error messages based on status code
+      if (response.status === 401) {
+        throw new APIError(401, 'Authentication failed. Please log in again.');
+      }
+      if (response.status === 403) {
+        throw new APIError(403, 'Access forbidden. You do not have permission to view collection data.');
+      }
+      if (response.status === 429) {
+        throw new APIError(429, 'Rate limit exceeded. Please try again later.');
+      }
+      if (response.status >= 500) {
+        throw new APIError(response.status, 'Server error. Please try again later.');
+      }
       throw new APIError(response.status, 'Failed to fetch collection');
     }
 

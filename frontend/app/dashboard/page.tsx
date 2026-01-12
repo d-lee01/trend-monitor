@@ -11,6 +11,10 @@ import { Trend } from '@/lib/types';
  * Displays Top 10 trends ranked by momentum score
  */
 
+// Cache dashboard data for 5 minutes (300 seconds)
+// Reduces backend load and improves performance
+export const revalidate = 300;
+
 async function getDashboardData() {
   const cookieStore = cookies();
   const token = cookieStore.get('auth_token')?.value;
@@ -31,6 +35,13 @@ async function getDashboardData() {
     };
   } catch (error) {
     console.error('Failed to fetch dashboard data:', error);
+
+    // Handle auth failures by redirecting to login
+    if (error instanceof Error && 'status' in error && (error as any).status === 401) {
+      redirect('/?message=Session expired. Please log in again.');
+    }
+
+    // For other errors, return empty state
     return {
       trends: [],
       lastUpdated: null

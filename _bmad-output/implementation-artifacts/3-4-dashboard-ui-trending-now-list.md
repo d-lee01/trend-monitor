@@ -1,6 +1,6 @@
 # Story 3.4: Dashboard UI - Trending Now List
 
-**Status:** review
+**Status:** done
 **Epic:** 3 - Trend Analysis & Dashboard
 **Story ID:** 3.4
 **Created:** 2026-01-12
@@ -825,16 +825,83 @@ Claude Sonnet 4.5 (claude-sonnet-4-5-20250929)
 
 **Ready for Code Review**
 
+---
+
+### Code Review Fixes Applied
+
+**Review Date:** 2026-01-12
+**Reviewer:** Adversarial Code Review Agent
+
+**Issues Found:** 1 CRITICAL, 1 HIGH, 4 MEDIUM, 3 LOW
+**Issues Fixed:** 5 (1 CRITICAL, 1 HIGH, 3 MEDIUM)
+
+**Fixes Applied:**
+
+1. **CRITICAL #1 - Missing Dashboard Test File (FIXED)**
+   - Created `frontend/__tests__/pages/dashboard.test.tsx` with 7 comprehensive tests
+   - Tests cover: auth redirect, trend rendering, empty state, Last Updated timestamp, error handling, button state
+   - All 41 tests now passing (was 34)
+
+2. **HIGH #2 - Silent Error Swallowing (FIXED)**
+   - Fixed `getDashboardData()` to detect 401 errors and redirect to login
+   - Added: `if (error.status === 401) redirect('/?message=Session expired')`
+   - Prevents user confusion when JWT expires
+
+3. **MEDIUM #3 - No Cache Strategy (FIXED)**
+   - Added `export const revalidate = 300;` to dashboard page
+   - Enables 5-minute cache for dashboard data
+   - Reduces backend load and improves performance
+
+4. **MEDIUM #4 - Poor Error Differentiation (FIXED)**
+   - Updated `api.getTrends()` and `api.getLatestCollection()` with specific error messages
+   - Now differentiates: 401 (auth), 403 (forbidden), 429 (rate limit), 500+ (server error)
+   - Provides actionable error messages to users
+
+5. **MEDIUM #5 - Missing Accessibility Labels (FIXED)**
+   - Added `aria-label={tooltip}` and `role="status"` to ConfidenceBadge
+   - Added `aria-hidden="true"` to emoji span
+   - Improves screen reader accessibility
+
+**Issues Documented (Not Fixed):**
+
+6. **MEDIUM #6 - SimilarWeb Display Format Mismatch**
+   - AC example shows "SimilarWeb: +150%" but implementation shows "1.2M"
+   - Current implementation correctly follows backend API contract (absolute traffic, not % change)
+   - Backend returns `similarweb_traffic: 1250000` (absolute), not percentage change
+   - **Recommendation:** Clarify with stakeholder OR add historical tracking for % change calculation
+   - **Status:** Deferred - requires backend changes or AC update
+
+**LOW Issues (Not Fixed):**
+- #7: formatPercent function unused (dead code) - minor maintenance burden
+- #8: Inconsistent null handling pattern - code style issue
+- #9: Loose version pinning - potential version drift
+
+**Testing Results After Fixes:**
+- Test Suites: 4 passed, 4 total
+- Tests: 41 passed, 41 total (added 7 dashboard tests)
+- Time: 0.48s
+
+**Files Modified During Code Review:**
+- `frontend/__tests__/pages/dashboard.test.tsx` (CREATED)
+- `frontend/app/dashboard/page.tsx` (auth error handling + cache strategy)
+- `frontend/lib/api.ts` (improved error messages)
+- `frontend/components/ConfidenceBadge.tsx` (accessibility labels)
+
+---
+
 ### File List
 
-**Files to Create:**
+**Files Created:**
 - `frontend/lib/types.ts` - TypeScript interfaces for Trend and CollectionSummary
 - `frontend/lib/formatters.ts` - Number formatting utilities (formatNumber, formatPercent, timeAgo)
 - `frontend/components/ConfidenceBadge.tsx` - Confidence level badge component (🔥⚡👀)
 - `frontend/components/TrendCard.tsx` - Individual trend card component
-- `frontend/__tests__/components/ConfidenceBadge.test.tsx` - Unit tests for badge
-- `frontend/__tests__/components/TrendCard.test.tsx` - Unit tests for card
-- `frontend/__tests__/pages/dashboard.test.tsx` - Integration tests for dashboard
+- `frontend/__tests__/components/ConfidenceBadge.test.tsx` - Unit tests for badge (6 tests)
+- `frontend/__tests__/components/TrendCard.test.tsx` - Unit tests for card (19 tests)
+- `frontend/__tests__/lib/formatters.test.ts` - Unit tests for formatters (9 tests)
+- `frontend/__tests__/pages/dashboard.test.tsx` - Integration tests for dashboard (7 tests)
+- `frontend/jest.config.js` - Jest configuration for Next.js 14
+- `frontend/jest.setup.js` - Jest setup file
 
 **Files to Modify:**
 - `frontend/lib/api.ts` - Add getTrends() and getLatestCollection() functions

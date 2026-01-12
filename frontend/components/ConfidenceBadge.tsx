@@ -43,8 +43,10 @@ export function ConfidenceBadge({ level }: ConfidenceBadgeProps) {
     <span
       className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${bg} ${text} ${border}`}
       title={tooltip}
+      aria-label={tooltip}
+      role="status"
     >
-      <span className="mr-1">{emoji}</span>
+      <span className="mr-1" aria-hidden="true">{emoji}</span>
       {level.toUpperCase()}
     </span>
   );
