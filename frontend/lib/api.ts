@@ -1,5 +1,5 @@
 // API client for backend communication
-import { Trend, CollectionSummary, CollectionResponse, CollectionStatusResponse } from './types';
+import { Trend, TrendDetail, CollectionSummary, CollectionResponse, CollectionStatusResponse, BriefResponse } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -97,6 +97,58 @@ export const api = {
     }
 
     return response.json();
+  },
+
+  /**
+   * Get detailed information for a specific trend by ID
+   * @param token - JWT authentication token
+   * @param id - UUID of the trend to fetch
+   * @returns Trend detail with all platform-specific fields
+   * @throws APIError if request fails (404, 401, or other errors)
+   */
+  async getTrendById(token: string, id: string): Promise<TrendDetail> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout for detail page
+
+    try {
+      const response = await fetch(`${API_URL}/trends/${id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        // Provide specific error messages based on status code
+        if (response.status === 401) {
+          throw new APIError(401, 'Authentication failed. Please log in again.');
+        }
+        if (response.status === 404) {
+          throw new APIError(404, 'Trend not found.');
+        }
+        if (response.status === 403) {
+          throw new APIError(403, 'Access forbidden. You do not have permission to view this trend.');
+        }
+        if (response.status === 429) {
+          throw new APIError(429, 'Rate limit exceeded. Please try again later.');
+        }
+        if (response.status >= 500) {
+          throw new APIError(response.status, 'Server error. Please try again later.');
+        }
+        throw new APIError(response.status, 'Failed to fetch trend details');
+      }
+
+      return response.json();
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new APIError(408, 'Request timeout. Please try again.');
+      }
+      throw error;
+    }
   },
 
   /**
@@ -220,5 +272,58 @@ export const api = {
     }
 
     return response.json();
+  },
+
+  /**
+   * Generate AI brief explanation for a specific trend
+   * @param token - JWT authentication token
+   * @param trendId - UUID of the trend to explain
+   * @returns Brief response with AI-generated explanation
+   * @throws APIError if request fails (401, 404, 503, timeout)
+   */
+  async generateTrendBrief(token: string, trendId: string): Promise<BriefResponse> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000); // 2 second timeout (Story 4.1 pattern)
+
+    try {
+      const response = await fetch(`${API_URL}/trends/${trendId}/explain`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        // Provide specific error messages based on status code
+        if (response.status === 401) {
+          throw new APIError(401, 'Authentication failed. Please log in again.');
+        }
+        if (response.status === 404) {
+          throw new APIError(404, 'Trend not found.');
+        }
+        if (response.status === 503) {
+          throw new APIError(503, 'Unable to generate explanation. Please try again later.');
+        }
+        if (response.status === 429) {
+          throw new APIError(429, 'Rate limit exceeded. Please try again later.');
+        }
+        if (response.status >= 500) {
+          throw new APIError(response.status, 'Server error. Please try again later.');
+        }
+        throw new APIError(response.status, 'Failed to generate trend brief');
+      }
+
+      return response.json();
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new APIError(408, 'Request timeout. Please try again.');
+      }
+      throw error;
+    }
   },
 };

@@ -10,7 +10,29 @@ jest.mock('next/link', () => {
   };
 });
 
+// Mock Next.js router
+jest.mock('next/navigation', () => ({
+  useRouter: jest.fn(() => ({
+    push: jest.fn(),
+    refresh: jest.fn(),
+  })),
+}));
+
+// Mock API client
+jest.mock('@/lib/api', () => ({
+  api: {
+    generateTrendBrief: jest.fn(),
+  },
+  APIError: class APIError extends Error {
+    constructor(public status: number, message: string) {
+      super(message);
+      this.name = 'APIError';
+    }
+  },
+}));
+
 describe('TrendCard Component', () => {
+  const mockToken = 'test-jwt-token';
   const mockTrend: Trend = {
     id: 'test-id-123',
     title: 'Test Trend Title',
@@ -24,13 +46,13 @@ describe('TrendCard Component', () => {
   };
 
   it('renders trend card with all fields', () => {
-    render(<TrendCard trend={mockTrend} />);
+    render(<TrendCard trend={mockTrend} token={mockToken} />);
 
     // Check title
     expect(screen.getByText('Test Trend Title')).toBeInTheDocument();
 
-    // Check confidence badge
-    expect(screen.getByText(/HIGH/i)).toBeInTheDocument();
+    // Check confidence badge (emoji only, no text)
+    expect(screen.getByText('🔥')).toBeInTheDocument();
 
     // Check metrics are displayed
     expect(screen.getByText(/Reddit:/i)).toBeInTheDocument();
@@ -46,21 +68,21 @@ describe('TrendCard Component', () => {
   });
 
   it('formats numbers correctly (15234 → "15.2K")', () => {
-    render(<TrendCard trend={mockTrend} />);
+    render(<TrendCard trend={mockTrend} token={mockToken} />);
 
     // Reddit score should be formatted
     expect(screen.getByText('15.2K')).toBeInTheDocument();
   });
 
   it('formats large numbers correctly (2534000 → "2.5M")', () => {
-    render(<TrendCard trend={mockTrend} />);
+    render(<TrendCard trend={mockTrend} token={mockToken} />);
 
     // YouTube views should be formatted
     expect(screen.getByText('2.5M')).toBeInTheDocument();
   });
 
   it('displays google trends interest without formatting', () => {
-    render(<TrendCard trend={mockTrend} />);
+    render(<TrendCard trend={mockTrend} token={mockToken} />);
 
     // Google Trends should be displayed as-is
     expect(screen.getByText('87')).toBeInTheDocument();
@@ -72,7 +94,7 @@ describe('TrendCard Component', () => {
       title: 'A'.repeat(120) // 120 character title
     };
 
-    render(<TrendCard trend={longTrend} />);
+    render(<TrendCard trend={longTrend} token={mockToken} />);
 
     const titleElement = screen.getByText(/A+\.\.\./);
     expect(titleElement.textContent).toHaveLength(100); // 97 chars + "..."
@@ -85,14 +107,14 @@ describe('TrendCard Component', () => {
       title: 'Short Title'
     };
 
-    render(<TrendCard trend={shortTrend} />);
+    render(<TrendCard trend={shortTrend} token={mockToken} />);
 
     const titleElement = screen.getByText('Short Title');
     expect(titleElement.textContent).toBe('Short Title');
   });
 
   it('links to correct trend detail page', () => {
-    const { container } = render(<TrendCard trend={mockTrend} />);
+    const { container } = render(<TrendCard trend={mockTrend} token={mockToken} />);
 
     const link = container.querySelector('a');
     expect(link).toHaveAttribute('href', '/trend/test-id-123');
@@ -104,7 +126,7 @@ describe('TrendCard Component', () => {
       reddit_score: null
     };
 
-    render(<TrendCard trend={trendWithNullReddit} />);
+    render(<TrendCard trend={trendWithNullReddit} token={mockToken} />);
 
     // Should display N/A for null reddit score
     const redditText = screen.getByText(/Reddit:/i).parentElement;
@@ -117,7 +139,7 @@ describe('TrendCard Component', () => {
       youtube_views: null
     };
 
-    render(<TrendCard trend={trendWithNullYouTube} />);
+    render(<TrendCard trend={trendWithNullYouTube} token={mockToken} />);
 
     // Should display N/A for null youtube views
     const youtubeText = screen.getByText(/YouTube:/i).parentElement;
@@ -130,7 +152,7 @@ describe('TrendCard Component', () => {
       google_trends_interest: null
     };
 
-    render(<TrendCard trend={trendWithNullGoogle} />);
+    render(<TrendCard trend={trendWithNullGoogle} token={mockToken} />);
 
     // Should display N/A for null google trends
     const googleText = screen.getByText(/Google Trends:/i).parentElement;
@@ -143,7 +165,7 @@ describe('TrendCard Component', () => {
       similarweb_traffic: null
     };
 
-    render(<TrendCard trend={trendWithNullSimilarweb} />);
+    render(<TrendCard trend={trendWithNullSimilarweb} token={mockToken} />);
 
     // Should display N/A for null similarweb traffic
     const similarwebText = screen.getByText(/SimilarWeb:/i).parentElement;
@@ -151,10 +173,10 @@ describe('TrendCard Component', () => {
   });
 
   it('applies hover styling classes', () => {
-    const { container } = render(<TrendCard trend={mockTrend} />);
+    const { container } = render(<TrendCard trend={mockTrend} token={mockToken} />);
 
-    const cardDiv = container.querySelector('.cursor-pointer');
+    const cardDiv = container.querySelector('.shadow');
     expect(cardDiv).toHaveClass('hover:shadow-lg');
-    expect(cardDiv).toHaveClass('transition-shadow');
+    expect(cardDiv).toHaveClass('transition-all');
   });
 });

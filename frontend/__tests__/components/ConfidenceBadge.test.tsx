@@ -1,89 +1,121 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { ConfidenceBadge } from '@/components/ConfidenceBadge';
 
 describe('ConfidenceBadge Component', () => {
-  describe('High confidence badge', () => {
-    it('renders with fire emoji and HIGH text', () => {
-      render(<ConfidenceBadge level="high" />);
+  it('renders high confidence badge with fire emoji', () => {
+    render(<ConfidenceBadge confidenceLevel="high" />);
 
-      const badge = screen.getByText(/HIGH/i);
-      expect(badge).toBeInTheDocument();
-
-      // Check for fire emoji
-      expect(badge.textContent).toContain('🔥');
-    });
-
-    it('applies correct CSS classes for high confidence', () => {
-      const { container } = render(<ConfidenceBadge level="high" />);
-      const span = container.querySelector('span');
-
-      expect(span).toHaveClass('bg-red-100');
-      expect(span).toHaveClass('text-red-800');
-      expect(span).toHaveClass('border-red-300');
-    });
-
-    it('displays correct tooltip for high confidence', () => {
-      const { container } = render(<ConfidenceBadge level="high" />);
-      const span = container.querySelector('span');
-
-      expect(span).toHaveAttribute('title', 'High confidence - All 4 signals aligned');
-    });
+    expect(screen.getByRole('img', { name: /confidence level: high/i })).toBeInTheDocument();
+    expect(screen.getByText('🔥')).toBeInTheDocument();
   });
 
-  describe('Medium confidence badge', () => {
-    it('renders with lightning emoji and MEDIUM text', () => {
-      render(<ConfidenceBadge level="medium" />);
+  it('renders medium confidence badge with lightning emoji', () => {
+    render(<ConfidenceBadge confidenceLevel="medium" />);
 
-      const badge = screen.getByText(/MEDIUM/i);
-      expect(badge).toBeInTheDocument();
-
-      // Check for lightning emoji
-      expect(badge.textContent).toContain('⚡');
-    });
-
-    it('applies correct CSS classes for medium confidence', () => {
-      const { container } = render(<ConfidenceBadge level="medium" />);
-      const span = container.querySelector('span');
-
-      expect(span).toHaveClass('bg-yellow-100');
-      expect(span).toHaveClass('text-yellow-800');
-      expect(span).toHaveClass('border-yellow-300');
-    });
-
-    it('displays correct tooltip for medium confidence', () => {
-      const { container } = render(<ConfidenceBadge level="medium" />);
-      const span = container.querySelector('span');
-
-      expect(span).toHaveAttribute('title', 'Medium confidence - 2-3 signals present');
-    });
+    expect(screen.getByRole('img', { name: /confidence level: medium/i })).toBeInTheDocument();
+    expect(screen.getByText('⚡')).toBeInTheDocument();
   });
 
-  describe('Low confidence badge', () => {
-    it('renders with eyes emoji and LOW text', () => {
-      render(<ConfidenceBadge level="low" />);
+  it('renders low confidence badge with eyes emoji', () => {
+    render(<ConfidenceBadge confidenceLevel="low" />);
 
-      const badge = screen.getByText(/LOW/i);
-      expect(badge).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /confidence level: low/i })).toBeInTheDocument();
+    expect(screen.getByText('👀')).toBeInTheDocument();
+  });
 
-      // Check for eyes emoji
-      expect(badge.textContent).toContain('👀');
-    });
+  it('displays tooltip on hover - high confidence', async () => {
+    const user = userEvent.setup({ delay: null });
+    render(<ConfidenceBadge confidenceLevel="high" />);
 
-    it('applies correct CSS classes for low confidence', () => {
-      const { container } = render(<ConfidenceBadge level="low" />);
-      const span = container.querySelector('span');
+    const badge = screen.getByText('🔥');
 
-      expect(span).toHaveClass('bg-blue-100');
-      expect(span).toHaveClass('text-blue-800');
-      expect(span).toHaveClass('border-blue-300');
-    });
+    // Tooltip should not be visible initially
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
 
-    it('displays correct tooltip for low confidence', () => {
-      const { container } = render(<ConfidenceBadge level="low" />);
-      const span = container.querySelector('span');
+    // Hover over badge
+    await user.hover(badge);
 
-      expect(span).toHaveAttribute('title', 'Low confidence - 1 signal present');
-    });
+    // Tooltip should be visible with correct text
+    expect(screen.getByRole('tooltip')).toBeInTheDocument();
+    expect(screen.getByText('High Confidence: All 4 platform signals aligned')).toBeInTheDocument();
+  });
+
+  it('displays tooltip on hover - medium confidence', async () => {
+    const user = userEvent.setup({ delay: null });
+    render(<ConfidenceBadge confidenceLevel="medium" />);
+
+    const badge = screen.getByText('⚡');
+    await user.hover(badge);
+
+    expect(screen.getByRole('tooltip')).toBeInTheDocument();
+    expect(screen.getByText('Medium: 2-3 signals')).toBeInTheDocument();
+  });
+
+  it('displays tooltip on hover - low confidence', async () => {
+    const user = userEvent.setup({ delay: null });
+    render(<ConfidenceBadge confidenceLevel="low" />);
+
+    const badge = screen.getByText('👀');
+    await user.hover(badge);
+
+    expect(screen.getByRole('tooltip')).toBeInTheDocument();
+    expect(screen.getByText('Low: 1 signal')).toBeInTheDocument();
+  });
+
+  it('hides tooltip on unhover', async () => {
+    const user = userEvent.setup({ delay: null });
+    render(<ConfidenceBadge confidenceLevel="high" />);
+
+    const badge = screen.getByText('🔥');
+
+    await user.hover(badge);
+    expect(screen.getByRole('tooltip')).toBeInTheDocument();
+
+    await user.unhover(badge);
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+  });
+
+  it('renders small size by default', () => {
+    render(<ConfidenceBadge confidenceLevel="high" />);
+
+    const badge = screen.getByText('🔥');
+    expect(badge).toHaveClass('text-2xl');
+  });
+
+  it('renders large size when specified', () => {
+    render(<ConfidenceBadge confidenceLevel="high" size="large" />);
+
+    const badge = screen.getByText('🔥');
+    expect(badge).toHaveClass('text-4xl');
+  });
+
+  it('applies correct color class for high confidence', () => {
+    render(<ConfidenceBadge confidenceLevel="high" />);
+
+    const badge = screen.getByText('🔥');
+    expect(badge).toHaveClass('text-orange-500');
+  });
+
+  it('applies correct color class for medium confidence', () => {
+    render(<ConfidenceBadge confidenceLevel="medium" />);
+
+    const badge = screen.getByText('⚡');
+    expect(badge).toHaveClass('text-amber-500');
+  });
+
+  it('applies correct color class for low confidence', () => {
+    render(<ConfidenceBadge confidenceLevel="low" />);
+
+    const badge = screen.getByText('👀');
+    expect(badge).toHaveClass('text-gray-500');
+  });
+
+  it('has cursor-help class for accessibility', () => {
+    render(<ConfidenceBadge confidenceLevel="high" />);
+
+    const badge = screen.getByText('🔥');
+    expect(badge).toHaveClass('cursor-help');
   });
 });

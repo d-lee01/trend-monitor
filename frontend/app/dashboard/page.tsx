@@ -90,7 +90,7 @@ export default async function DashboardPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {trends.map((trend) => (
-              <TrendCard key={trend.id} trend={trend} />
+              <TrendCard key={trend.id} trend={trend} token={token} />
             ))}
           </div>
         )}

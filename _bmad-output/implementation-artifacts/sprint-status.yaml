@@ -66,7 +66,7 @@ development_status:
   3-6-trend-detail-view: done
   epic-3-retrospective: optional
 
-  epic-4: in-progress
+  epic-4: done
   4-1-claude-api-integration-for-trend-briefs: done
-  4-2-explain-this-trend-button-ui: backlog
+  4-2-explain-this-trend-button-ui: done
   epic-4-retrospective: optional

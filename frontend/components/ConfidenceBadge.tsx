@@ -1,53 +1,95 @@
 'use client';
 
+import { useState } from 'react';
+
 /**
  * Confidence Badge Component
- * Displays confidence level for trends with emoji indicators:
- * - 🔥 High: All 4 signals aligned
- * - ⚡ Medium: 2-3 signals present
- * - 👀 Low: 1 signal present
+ * Displays confidence level for trends with emoji indicators and hover tooltip:
+ * - 🔥 High: All 4 platform signals aligned
+ * - ⚡ Medium: 2-3 signals
+ * - 👀 Low: 1 signal
+ *
+ * Supports two sizes: small (text-2xl) for cards, large (text-4xl) for detail page
  */
 
 interface ConfidenceBadgeProps {
-  level: 'high' | 'medium' | 'low';
+  confidenceLevel: 'high' | 'medium' | 'low';
+  size?: 'small' | 'large';
 }
 
-export function ConfidenceBadge({ level }: ConfidenceBadgeProps) {
-  const config = {
-    high: {
-      emoji: '🔥',
-      bg: 'bg-red-100',
-      text: 'text-red-800',
-      border: 'border-red-300',
-      tooltip: 'High confidence - All 4 signals aligned'
-    },
-    medium: {
-      emoji: '⚡',
-      bg: 'bg-yellow-100',
-      text: 'text-yellow-800',
-      border: 'border-yellow-300',
-      tooltip: 'Medium confidence - 2-3 signals present'
-    },
-    low: {
-      emoji: '👀',
-      bg: 'bg-blue-100',
-      text: 'text-blue-800',
-      border: 'border-blue-300',
-      tooltip: 'Low confidence - 1 signal present'
+export function ConfidenceBadge({ confidenceLevel, size = 'small' }: ConfidenceBadgeProps) {
+  const [showTooltip, setShowTooltip] = useState(false);
+
+  // Map confidence level to emoji
+  const getEmoji = () => {
+    switch (confidenceLevel) {
+      case 'high':
+        return '🔥';
+      case 'medium':
+        return '⚡';
+      case 'low':
+        return '👀';
+      default:
+        return '👀';
     }
   };
 
-  const { emoji, bg, text, border, tooltip } = config[level];
+  // Map confidence level to tooltip text
+  const getTooltipText = () => {
+    switch (confidenceLevel) {
+      case 'high':
+        return 'High Confidence: All 4 platform signals aligned';
+      case 'medium':
+        return 'Medium: 2-3 signals';
+      case 'low':
+        return 'Low: 1 signal';
+      default:
+        return 'Low: 1 signal';
+    }
+  };
+
+  // Map confidence level to color classes
+  const getColorClass = () => {
+    switch (confidenceLevel) {
+      case 'high':
+        return 'text-orange-500';
+      case 'medium':
+        return 'text-amber-500';
+      case 'low':
+        return 'text-gray-500';
+      default:
+        return 'text-gray-500';
+    }
+  };
+
+  // Map size to text size class
+  const getSizeClass = () => {
+    return size === 'large' ? 'text-4xl' : 'text-2xl';
+  };
 
   return (
-    <span
-      className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${bg} ${text} ${border}`}
-      title={tooltip}
-      aria-label={tooltip}
-      role="status"
-    >
-      <span className="mr-1" aria-hidden="true">{emoji}</span>
-      {level.toUpperCase()}
-    </span>
+    <div className="relative inline-block">
+      <span
+        className={`${getSizeClass()} ${getColorClass()} cursor-help transition-transform hover:scale-110`}
+        onMouseEnter={() => setShowTooltip(true)}
+        onMouseLeave={() => setShowTooltip(false)}
+        role="img"
+        aria-label={`Confidence level: ${confidenceLevel}`}
+      >
+        {getEmoji()}
+      </span>
+
+      {/* Tooltip */}
+      {showTooltip && (
+        <div
+          className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg whitespace-nowrap z-10 shadow-lg"
+          role="tooltip"
+        >
+          {getTooltipText()}
+          {/* Tooltip arrow */}
+          <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-gray-900"></div>
+        </div>
+      )}
+    </div>
   );
 }
