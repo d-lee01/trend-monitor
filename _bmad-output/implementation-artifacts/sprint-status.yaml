@@ -57,16 +57,16 @@ development_status:
   2-7-automated-daily-collection-at-7-30-am: done
   epic-2-retrospective: optional
 
-  epic-3: in-progress
+  epic-3: done
   3-1-scoring-algorithm-implementation: done
   3-2-score-calculation-integration: done
   3-3-trends-api-endpoints: done
   3-4-dashboard-ui-trending-now-list: done
   3-5-manual-collection-trigger-ui: done
-  3-6-trend-detail-view: backlog
+  3-6-trend-detail-view: done
   epic-3-retrospective: optional
 
-  epic-4: backlog
-  4-1-claude-api-integration-for-trend-briefs: backlog
+  epic-4: in-progress
+  4-1-claude-api-integration-for-trend-briefs: done
   4-2-explain-this-trend-button-ui: backlog
   epic-4-retrospective: optional

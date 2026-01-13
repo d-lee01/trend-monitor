@@ -173,3 +173,9 @@ async def test_user_token(setup_database):
         # Generate token
         token = create_access_token(data={"sub": test_user.username})
         return token
+
+
+@pytest.fixture
+async def auth_headers(test_user_token):
+    """Provide authorization headers with valid JWT token"""
+    return {"Authorization": f"Bearer {test_user_token}"}
