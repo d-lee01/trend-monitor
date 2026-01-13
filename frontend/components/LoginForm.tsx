@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, FormEvent } from 'react';
-import { useAuth } from './AuthProvider';
-import { APIError } from '@/lib/api';
+import { useRouter } from 'next/navigation';
+import { loginAction } from '@/app/actions';
 
 export function LoginForm() {
-  const { login } = useAuth();
+  const router = useRouter();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -17,13 +17,17 @@ export function LoginForm() {
     setIsLoading(true);
 
     try {
-      await login(username, password);
-    } catch (err) {
-      if (err instanceof APIError) {
-        setError(err.message);
+      const result = await loginAction(username, password);
+
+      if (result.success) {
+        // Redirect to dashboard on success
+        router.push('/dashboard');
+        router.refresh(); // Force server component to re-fetch
       } else {
-        setError('Connection failed. Please try again.');
+        setError(result.error || 'Login failed');
       }
+    } catch (err) {
+      setError('Connection failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
