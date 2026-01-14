@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import MetaData
+from sqlalchemy import MetaData, TIMESTAMP
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -36,6 +36,7 @@ class UUIDMixin:
 class TimestampMixin:
     """Mixin for models with created_at timestamp."""
     created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
         server_default=func.now(),
         nullable=False
     )

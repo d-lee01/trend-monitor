@@ -21,12 +21,12 @@ class DataCollection(Base, UUIDMixin):
 
     # Collection timestamps
     started_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP,
+        TIMESTAMP(timezone=True),
         server_default=func.now(),
         nullable=False,
         index=True
     )
-    completed_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP, nullable=True)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
 
     # Collection status
     status: Mapped[str] = mapped_column(

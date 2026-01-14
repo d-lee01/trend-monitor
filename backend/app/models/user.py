@@ -18,7 +18,7 @@ class User(Base, UUIDMixin, TimestampMixin):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
 
     # Activity tracking
-    last_login: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP, nullable=True)
+    last_login: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
 
     def __repr__(self) -> str:
         return f"<User(id={self.id}, username='{self.username}')>"

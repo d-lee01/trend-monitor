@@ -65,7 +65,7 @@ class Trend(Base, UUIDMixin, TimestampMixin):
 
     # AI Generated Brief
     ai_brief: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    ai_brief_generated_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP, nullable=True)
+    ai_brief_generated_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
 
     # Relationships
     collection: Mapped["DataCollection"] = relationship("DataCollection", back_populates="trends")
