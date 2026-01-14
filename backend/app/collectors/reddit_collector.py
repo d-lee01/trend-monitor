@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Dict, Any
 import praw
 from praw.exceptions import PRAWException
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.collectors.base import DataCollector, CollectionResult, RateLimitInfo
 from app.collectors.rate_limiters import RequestsPerMinuteRateLimiter
@@ -41,8 +42,12 @@ class RedditCollector(DataCollector):
         # Returns CollectionResult with 50 posts (10 subreddits × 5 posts)
     """
 
-    def __init__(self):
-        """Initialize Reddit collector with OAuth authentication."""
+    def __init__(self, db_session: AsyncSession):
+        """Initialize Reddit collector with OAuth authentication.
+
+        Args:
+            db_session: Database session (not used by Reddit collector, but required for interface consistency)
+        """
         super().__init__(name="reddit")
 
         # Validate credentials
