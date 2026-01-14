@@ -300,6 +300,50 @@ class SimilarWebSocialCollector(DataCollector):
 
         return result
 
+    async def health_check(self) -> bool:
+        """Check if SimilarWeb API is accessible.
+
+        Returns:
+            True if API is healthy, False otherwise
+        """
+        try:
+            # Test with categories endpoint (free, doesn't consume quota)
+            url = f"{self.base_url}/v1/TopSites/categories"
+            response = await asyncio.to_thread(
+                lambda: self.session.get(url, timeout=(5, 10))
+            )
+            return response.status_code == 200
+        except Exception as e:
+            logger.error(
+                f"SimilarWeb health check failed: {str(e)}",
+                extra={
+                    "event": "health_check_failed",
+                    "api": "similarweb_social",
+                    "error": str(e)
+                }
+            )
+            return False
+
+    async def get_rate_limit_info(self) -> "RateLimitInfo":
+        """Get rate limit info for SimilarWeb API.
+
+        Note: SimilarWeb uses monthly credit quotas rather than per-minute rate limits.
+        This returns a placeholder since we don't track monthly quota in real-time.
+
+        Returns:
+            RateLimitInfo with placeholder values
+        """
+        from app.collectors.base import RateLimitInfo
+
+        # SimilarWeb uses monthly quotas, not per-request rate limits
+        # Return placeholder info
+        return RateLimitInfo(
+            limit=100000,  # Typical monthly quota
+            remaining=-1,  # Unknown without quota API call
+            reset_at=datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0),
+            quota_type="monthly"
+        )
+
     async def collect(self, topics: List[str] = None) -> CollectionResult:
         """Collect social traction data for top companies in specified categories.
 
