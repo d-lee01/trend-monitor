@@ -1,11 +1,14 @@
 """Temporary admin endpoints for bootstrapping - REMOVE IN PRODUCTION."""
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, update
 from pydantic import BaseModel
+from uuid import UUID
+from datetime import datetime, timezone
 
 from app.database import get_db
 from app.models.user import User
+from app.models.data_collection import DataCollection
 from app.core.security import get_password_hash
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -54,6 +57,55 @@ async def create_user_endpoint(
             "status": "created",
             "message": f"User '{user_data.username}' created successfully",
             "user_id": str(user.id)
+        }
+    except Exception as e:
+        import traceback
+        return {
+            "status": "error",
+            "message": str(e),
+            "traceback": traceback.format_exc()
+        }
+
+
+@router.post("/fail-stuck-collection")
+async def fail_stuck_collection(
+    db: AsyncSession = Depends(get_db)
+):
+    """Manually fail any stuck in_progress collections.
+
+    Useful when collections get interrupted by deployments or crashes.
+    """
+    try:
+        # Find all in_progress collections
+        result = await db.execute(
+            select(DataCollection).where(DataCollection.status == "in_progress")
+        )
+        stuck_collections = result.scalars().all()
+
+        if not stuck_collections:
+            return {
+                "status": "none_found",
+                "message": "No stuck collections found"
+            }
+
+        # Update all to failed status
+        stmt = update(DataCollection).where(
+            DataCollection.status == "in_progress"
+        ).values(
+            status="failed",
+            completed_at=datetime.now(timezone.utc),
+            error_message="Collection interrupted by deployment or manual intervention"
+        )
+
+        await db.execute(stmt)
+        await db.commit()
+
+        collection_ids = [str(c.id) for c in stuck_collections]
+
+        return {
+            "status": "success",
+            "message": f"Marked {len(stuck_collections)} collection(s) as failed",
+            "collection_ids": collection_ids
         }
     except Exception as e:
         import traceback
