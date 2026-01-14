@@ -16,7 +16,7 @@ from app.schemas.collection import CollectionResponse, CollectionStatusResponse
 from app.collectors.reddit_collector import RedditCollector
 from app.collectors.youtube_collector import YouTubeCollector
 from app.collectors.google_trends_collector import GoogleTrendsCollector
-from app.collectors.similarweb_collector import SimilarWebCollector
+from app.collectors.similarweb_social_collector import SimilarWebSocialCollector
 from app.collectors.orchestrator import CollectionOrchestrator
 from app.collectors.base import CollectionResult
 from app.collectors.topics import DEFAULT_TOPICS
@@ -64,9 +64,15 @@ async def store_trends(
                 continue  # Skip failed items
 
             # Create trend record
+            # For similarweb_social, use domain as title; otherwise use title/topic
+            if source == "similarweb_social":
+                title = f"{trend_data.get('domain', 'Unknown')} ({trend_data.get('category', 'Unknown Category')})"
+            else:
+                title = trend_data.get("title", trend_data.get("topic", "Untitled"))
+
             trend = Trend(
                 id=uuid4(),
-                title=trend_data.get("title", trend_data.get("topic", "Untitled")),
+                title=title,
                 collection_id=collection_id,
                 created_at=datetime.now(timezone.utc)
             )
@@ -93,10 +99,22 @@ async def store_trends(
                 trend.google_trends_spike_score = trend_data.get("spike_score")
                 trend.google_trends_spike_detected = trend_data.get("spike_detected", False)
 
-            elif source == "similarweb":
+            elif source == "similarweb_social":
+                # Store company social traction analysis
                 trend.similarweb_traffic = trend_data.get("total_visits")
-                trend.similarweb_sources = trend_data.get("traffic_sources")
-                trend.similarweb_bonus_applied = trend_data.get("traffic_spike_detected", False)
+                # Store full social traction analysis in JSONB field
+                trend.similarweb_sources = {
+                    "domain": trend_data.get("domain"),
+                    "category": trend_data.get("category"),
+                    "rank": trend_data.get("rank"),
+                    "platform_metrics": trend_data.get("platform_metrics", {}),
+                    "viral_platforms": trend_data.get("viral_platforms", []),
+                    "high_growth_platforms": trend_data.get("high_growth_platforms", []),
+                    "trend_signal": trend_data.get("trend_signal"),
+                    "signal_reason": trend_data.get("signal_reason")
+                }
+                # Apply bonus for viral/high traction companies
+                trend.similarweb_bonus_applied = trend_data.get("trend_signal") in ["VIRAL", "HIGH_TRACTION"]
 
             db.add(trend)
             trends_stored += 1
@@ -510,7 +528,7 @@ async def run_collection(collection_id: UUID):
             reddit_collector = RedditCollector(db_session=db)
             youtube_collector = YouTubeCollector(db_session=db)
             google_trends_collector = GoogleTrendsCollector(db_session=db)
-            similarweb_collector = SimilarWebCollector(db_session=db)
+            similarweb_social_collector = SimilarWebSocialCollector(db_session=db)
 
             # Initialize orchestrator
             orchestrator = CollectionOrchestrator(
@@ -518,7 +536,7 @@ async def run_collection(collection_id: UUID):
                     reddit_collector,
                     youtube_collector,
                     google_trends_collector,
-                    similarweb_collector
+                    similarweb_social_collector
                 ],
                 db_session=db
             )
@@ -528,7 +546,7 @@ async def run_collection(collection_id: UUID):
                 extra={
                     "event": "orchestrator_init",
                     "collection_id": str(collection_id),
-                    "collectors": ["reddit", "youtube", "google_trends", "similarweb"]
+                    "collectors": ["reddit", "youtube", "google_trends", "similarweb_social"]
                 }
             )
 
