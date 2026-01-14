@@ -94,7 +94,7 @@ async def fail_stuck_collection(
         ).values(
             status="failed",
             completed_at=datetime.now(timezone.utc),
-            error_message="Collection interrupted by deployment or manual intervention"
+            errors={"manual_intervention": "Collection interrupted by deployment or manual intervention"}
         )
 
         await db.execute(stmt)
