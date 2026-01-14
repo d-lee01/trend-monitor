@@ -92,7 +92,7 @@ class SimilarWebSocialCollector(DataCollector):
             }
         )
 
-    @retry_with_backoff(max_attempts=3, base_delay=2.0)
+    @retry_with_backoff(max_attempts=3, backoff_base=2)
     async def _fetch_top_sites(self, category: str, limit: int = 20) -> List[Dict[str, Any]]:
         """Fetch top sites in a category.
 
@@ -154,7 +154,7 @@ class SimilarWebSocialCollector(DataCollector):
 
         return sites
 
-    @retry_with_backoff(max_attempts=3, base_delay=2.0)
+    @retry_with_backoff(max_attempts=3, backoff_base=2)
     async def _fetch_social_referrals(self, domain: str) -> Optional[Dict[str, Any]]:
         """Fetch social referral traffic for a domain.
 
