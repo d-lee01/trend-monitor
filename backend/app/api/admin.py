@@ -93,8 +93,7 @@ async def fail_stuck_collection(
             DataCollection.status == "in_progress"
         ).values(
             status="failed",
-            completed_at=datetime.now(timezone.utc),
-            errors={"manual_intervention": "Collection interrupted by deployment or manual intervention"}
+            completed_at=datetime.now(timezone.utc)
         )
 
         await db.execute(stmt)
