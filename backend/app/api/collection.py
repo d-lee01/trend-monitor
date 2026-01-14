@@ -530,7 +530,7 @@ async def run_collection(collection_id: UUID):
             # Initialize collectors
             reddit_collector = RedditCollector(db_session=db)
             youtube_collector = YouTubeCollector(db_session=db)
-            google_trends_collector = GoogleTrendsCollector(db_session=db)
+            # google_trends_collector = GoogleTrendsCollector(db_session=db)  # Disabled until API access approved
             similarweb_social_collector = SimilarWebSocialCollector(db_session=db)
 
             # Initialize orchestrator
@@ -538,18 +538,18 @@ async def run_collection(collection_id: UUID):
                 collectors=[
                     reddit_collector,
                     youtube_collector,
-                    google_trends_collector,
+                    # google_trends_collector,  # Disabled until API access approved
                     similarweb_social_collector
                 ],
                 db_session=db
             )
 
             logger.info(
-                "Orchestrator initialized with 4 collectors",
+                "Orchestrator initialized with 3 collectors",
                 extra={
                     "event": "orchestrator_init",
                     "collection_id": str(collection_id),
-                    "collectors": ["reddit", "youtube", "google_trends", "similarweb_social"]
+                    "collectors": ["reddit", "youtube", "similarweb_social"]
                 }
             )
 
@@ -927,10 +927,10 @@ async def trigger_collection(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> CollectionResponse:
-    """Manually trigger data collection from all 4 APIs.
+    """Manually trigger data collection from all available APIs.
 
-    Runs collectors in parallel for Reddit, YouTube, Google Trends, and SimilarWeb.
-    Collection typically completes in 20-25 minutes.
+    Runs collectors in parallel for Reddit, YouTube, and SimilarWeb.
+    Collection typically completes in 30-60 seconds.
 
     **Authentication:** Requires JWT token in Authorization header
 
