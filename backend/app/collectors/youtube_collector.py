@@ -15,30 +15,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
-# Default trending channels to monitor
-DEFAULT_CHANNELS = [
-    "UC-lHJZR3Gqxm24_Vd_AJ5Yw",  # PewDiePie
-    "UCbCmjCuTUZos6Inko4u57UQ",  # Cocomelon
-    "UCq-Fj5jknLsUf-MWSy4_brA",  # T-Series
-    "UCX6OQ3DkcsbYNE6H8uQQuVA",  # MrBeast
-    "UCFFbwnve3yF62-tV_0ie4ZA",  # Dude Perfect
-    "UCpEhnqL0y41EpW2TvWAHD7Q",  # Vlad and Niki
-    "UCbxy8LzGJbMhZNCr4wRVtgg",  # Zee Music Company
-    "UCEgdi0XIXXZ-qJOFPf4JSKw",  # Sports
-    "UC_x5XG1OV2P6uZZ5FSM9Ttw",  # Google Developers
-    "UCBJycsmduvYEL83R_U4JriQ",  # MKBHD
-    "UCXuqSBlHAE6Xw-yeJA0Tunw",  # Linus Tech Tips
-    "UCsvn_Po0SmunchJYOWpOxMg",  # jacksepticeye
-    "UCRijo3ddMTht_IHyNSNXpNQ",  # Dua Lipa
-    "UCqECaJ8Gagnn7YCbPEzWH6g",  # Taylor Swift
-    "UCpko_-a4wgz2u_DgDgd9fqA",  # WWE
-    "UCj22tfcQrWG7EMEKS0qLeEg",  # NBA
-    "UC7_YxT-KID8kRbqZo7MyscQ",  # Markiplier
-    "UCq-W1KE9ErbvC7jOhmfj6hA",  # Unbox Therapy
-    "UCfV36TX5AejfAGIbtwTc7Zw",  # Veritasium
-    "UCHnyfMqiRRG1u-2MsSQLbXA",  # Vsauce
-]
-
 
 class QuotaExceededException(Exception):
     """Raised when YouTube API quota is exceeded."""
@@ -48,17 +24,20 @@ class QuotaExceededException(Exception):
 class YouTubeCollector(DataCollector):
     """Collects trending videos from YouTube using Google API Client.
 
-    Monitors 20 default trending channels, collecting latest video from each.
-    Uses 3-4 API calls per channel (channels.list, playlistItems.list, videos.list,
-    plus optional cached channels.list for subscriber count).
-    Total quota cost: 60-80 units per collection (3-4 units × 20 channels).
-    Implements channel metadata caching and quota tracking to stay within 10K daily quota.
+    Searches for trending videos about specified topics using YouTube Search API.
+    Returns the top 5 most relevant and recent videos per topic, ordered by relevance.
+
+    Quota cost: 100 units per search call + 1 unit per video details call.
+    For 5 videos per topic: 100 + 5 = 105 units per topic.
+    With 10K daily quota, can search ~95 topics per day (50 topics = ~5,250 units).
+
+    Implements video metadata caching and quota tracking to stay within 10K daily quota.
 
     Example:
         collector = YouTubeCollector(db_session=db)
-        result = await collector.collect(topics=DEFAULT_CHANNELS)
-        # Returns CollectionResult with 20 videos (1 per channel)
-        # Consumes 60-80 quota units (3-4 per channel)
+        result = await collector.collect(topics=["artificial intelligence", "machine learning"])
+        # Returns CollectionResult with 10 videos (5 per topic)
+        # Consumes ~210 quota units (105 per topic)
     """
 
     def __init__(self, db_session: AsyncSession):
@@ -90,8 +69,8 @@ class YouTubeCollector(DataCollector):
             db_session=db_session
         )
 
-        # Channel metadata cache (1 hour TTL)
-        self.channel_cache = TTLCache(maxsize=100, ttl=3600)
+        # Video metadata cache (1 hour TTL) - cache video details to avoid redundant API calls
+        self.video_cache = TTLCache(maxsize=500, ttl=3600)
 
         logger.info("YouTubeCollector initialized", extra={
             "event": "collector_init",
@@ -99,165 +78,106 @@ class YouTubeCollector(DataCollector):
             "quota_limit": "10000/day"
         })
 
-    async def _get_channel_subscriber_count(
-        self,
-        channel_id: str
-    ) -> Optional[int]:
-        """Get channel subscriber count with caching.
-
-        Args:
-            channel_id: YouTube channel ID
-
-        Returns:
-            Subscriber count, or None if failed
-        """
-        # Check cache first
-        if channel_id in self.channel_cache:
-            logger.debug(
-                f"Cache hit for channel {channel_id}",
-                extra={"event": "cache_hit", "channel_id": channel_id}
-            )
-            return self.channel_cache[channel_id]
-
-        # Cache miss - fetch from API
-        try:
-            async with self.quota_limiter.consume(units=1):
-                response = await asyncio.to_thread(
-                    lambda: self.youtube.channels().list(
-                        part="statistics",
-                        id=channel_id
-                    ).execute()
-                )
-
-            if not response.get('items'):
-                logger.warning(f"Channel {channel_id} not found")
-                return None
-
-            subscriber_count = int(
-                response['items'][0]['statistics'].get('subscriberCount', 0)
-            )
-            self.channel_cache[channel_id] = subscriber_count
-
-            logger.debug(
-                f"Fetched subscriber count for channel {channel_id}: {subscriber_count:,}",
-                extra={
-                    "event": "channel_fetch",
-                    "channel_id": channel_id,
-                    "subscribers": subscriber_count
-                }
-            )
-
-            return subscriber_count
-
-        except HttpError as e:
-            logger.error(
-                f"Failed to fetch channel {channel_id}: {str(e)}",
-                extra={
-                    "event": "channel_fetch_error",
-                    "channel_id": channel_id,
-                    "error": str(e),
-                    "status_code": e.resp.status if hasattr(e, 'resp') else None
-                }
-            )
-            return None
-
     @retry_with_backoff(max_attempts=3, backoff_base=2, exceptions=(HttpError,))
-    async def _fetch_latest_video(
+    async def _search_videos_for_topic(
         self,
-        channel_id: str
-    ) -> Optional[Dict[str, Any]]:
-        """Fetch latest video from a channel with retry logic.
+        topic: str,
+        max_results: int = 5
+    ) -> List[Dict[str, Any]]:
+        """Search for trending videos about a topic with retry logic.
 
-        Quota cost: 3 API calls (3 units) plus 1 additional call for subscriber
-        count if not cached (4 units total on cache miss, 3 on cache hit).
+        Quota cost: 100 units for search + 1 unit per video for details.
+        For max_results=5: 100 + 5 = 105 units total.
 
         Args:
-            channel_id: YouTube channel ID
+            topic: Search query/topic (e.g., "artificial intelligence")
+            max_results: Number of videos to return (default: 5)
 
         Returns:
-            Video data dictionary, or None if failed after retries
+            List of video data dictionaries
         """
         try:
-            # Get latest video from channel's uploads playlist
-            async with self.quota_limiter.consume(units=1):
-                # Get channel's uploads playlist ID
-                channel_response = await asyncio.to_thread(
-                    lambda: self.youtube.channels().list(
-                        part="contentDetails",
-                        id=channel_id
-                    ).execute()
-                )
-
-            if not channel_response.get('items'):
-                logger.warning(f"Channel {channel_id} not found")
-                return None
-
-            uploads_playlist_id = channel_response['items'][0]['contentDetails']['relatedPlaylists']['uploads']
-
-            # Get latest video from uploads playlist
-            async with self.quota_limiter.consume(units=1):
-                playlist_response = await asyncio.to_thread(
-                    lambda: self.youtube.playlistItems().list(
+            # Search for videos about the topic
+            async with self.quota_limiter.consume(units=100):
+                search_response = await asyncio.to_thread(
+                    lambda: self.youtube.search().list(
                         part="snippet",
-                        playlistId=uploads_playlist_id,
-                        maxResults=1
+                        q=topic,
+                        type="video",
+                        order="relevance",  # Most relevant videos
+                        maxResults=max_results,
+                        publishedAfter=(datetime.now(timezone.utc) - timedelta(days=30)).isoformat().replace('+00:00', 'Z'),  # Last 30 days
+                        relevanceLanguage="en",  # English videos
+                        safeSearch="moderate"
                     ).execute()
                 )
 
-            if not playlist_response.get('items'):
-                logger.warning(f"No videos found for channel {channel_id}")
-                return None
+            if not search_response.get('items'):
+                logger.warning(f"No videos found for topic: {topic}")
+                return []
 
-            video_id = playlist_response['items'][0]['snippet']['resourceId']['videoId']
+            # Extract video IDs
+            video_ids = [item['id']['videoId'] for item in search_response['items']]
 
-            # Get video statistics
+            # Get detailed statistics for all videos (1 unit per call, but can batch)
             async with self.quota_limiter.consume(units=1):
-                video_response = await asyncio.to_thread(
+                videos_response = await asyncio.to_thread(
                     lambda: self.youtube.videos().list(
                         part="snippet,statistics",
-                        id=video_id
+                        id=",".join(video_ids)
                     ).execute()
                 )
 
-            if not video_response.get('items'):
-                return None
+            if not videos_response.get('items'):
+                logger.warning(f"No video details found for topic: {topic}")
+                return []
 
-            video = video_response['items'][0]
-            snippet = video['snippet']
-            stats = video['statistics']
+            # Process video data
+            videos_data = []
+            for video in videos_response['items']:
+                snippet = video['snippet']
+                stats = video['statistics']
 
-            # Parse published_at timestamp
-            published_at = datetime.fromisoformat(
-                snippet['publishedAt'].replace('Z', '+00:00')
+                # Parse published_at timestamp
+                published_at = datetime.fromisoformat(
+                    snippet['publishedAt'].replace('Z', '+00:00')
+                )
+                hours_since_publish = (
+                    datetime.now(timezone.utc) - published_at
+                ).total_seconds() / 3600
+
+                # Calculate engagement rate
+                view_count = int(stats.get('viewCount', 0))
+                like_count = int(stats.get('likeCount', 0))
+                engagement_rate = like_count / view_count if view_count > 0 else 0.0
+
+                video_data = {
+                    "video_id": video['id'],
+                    "video_title": snippet['title'],
+                    "channel_title": snippet['channelTitle'],
+                    "channel_id": snippet['channelId'],
+                    "published_at": snippet['publishedAt'],
+                    "view_count": view_count,
+                    "like_count": like_count,
+                    "comment_count": int(stats.get('commentCount', 0)),
+                    "hours_since_publish": round(hours_since_publish, 2),
+                    "engagement_rate": round(engagement_rate, 4),
+                    "thumbnail_url": snippet['thumbnails']['default']['url'],
+                    "topic": topic  # Track which topic this video was found for
+                }
+                videos_data.append(video_data)
+
+            logger.info(
+                f"Found {len(videos_data)} videos for topic: {topic}",
+                extra={
+                    "event": "topic_search_complete",
+                    "api": "youtube",
+                    "topic": topic,
+                    "videos_found": len(videos_data)
+                }
             )
-            hours_since_publish = (
-                datetime.now(timezone.utc) - published_at
-            ).total_seconds() / 3600
 
-            # Get channel subscriber count (cached)
-            subscriber_count = await self._get_channel_subscriber_count(channel_id)
-
-            # Calculate engagement rate
-            view_count = int(stats.get('viewCount', 0))
-            like_count = int(stats.get('likeCount', 0))
-            engagement_rate = like_count / view_count if view_count > 0 else 0.0
-
-            video_data = {
-                "video_id": video_id,
-                "video_title": snippet['title'],
-                "channel_title": snippet['channelTitle'],
-                "channel_id": channel_id,
-                "published_at": snippet['publishedAt'],
-                "view_count": view_count,
-                "like_count": like_count,
-                "comment_count": int(stats.get('commentCount', 0)),
-                "channel_subscriber_count": subscriber_count or 0,
-                "hours_since_publish": round(hours_since_publish, 2),
-                "engagement_rate": round(engagement_rate, 4),
-                "thumbnail_url": snippet['thumbnails']['default']['url']
-            }
-
-            return video_data
+            return videos_data
 
         except HttpError as e:
             if e.resp.status == 403:
@@ -269,11 +189,11 @@ class YouTubeCollector(DataCollector):
                 raise QuotaExceededException("YouTube API quota exceeded")
             else:
                 logger.error(
-                    f"YouTube API error for channel {channel_id}: {str(e)}",
+                    f"YouTube API error for topic '{topic}': {str(e)}",
                     extra={
                         "event": "api_error",
                         "api": "youtube",
-                        "channel_id": channel_id,
+                        "topic": topic,
                         "error": str(e),
                         "status_code": e.resp.status
                     }
@@ -282,10 +202,10 @@ class YouTubeCollector(DataCollector):
                 raise
 
     async def collect(self, topics: List[str]) -> CollectionResult:
-        """Collect trending videos from YouTube for given channels.
+        """Collect trending videos from YouTube for given topics.
 
         Args:
-            topics: List of YouTube channel IDs
+            topics: List of search topics/keywords (e.g., ["artificial intelligence", "machine learning"])
 
         Returns:
             CollectionResult with collected videos and metrics
@@ -326,7 +246,7 @@ class YouTubeCollector(DataCollector):
             )
 
         logger.info(
-            f"Starting YouTube collection for {len(topics)} channels",
+            f"Starting YouTube collection for {len(topics)} topics",
             extra={
                 "event": "collection_start",
                 "api": "youtube",
@@ -335,13 +255,14 @@ class YouTubeCollector(DataCollector):
             }
         )
 
-        # Collect from each channel
-        for channel_id in topics:
-            # Check quota before each channel (prevent mid-collection quota exceeded)
+        # Collect from each topic
+        for topic in topics:
+            # Check quota before each topic (prevent mid-collection quota exceeded)
+            # Each topic costs ~105 units (100 for search + 5 for video details)
             current_usage = await self.quota_limiter.get_usage_today()
-            if current_usage + 4 > 10000:  # Reserve 4 units per channel (worst case)
+            if current_usage + 105 > 10000:
                 logger.warning(
-                    f"Stopping collection: insufficient quota ({current_usage}/10,000, need 4 more)",
+                    f"Stopping collection: insufficient quota ({current_usage}/10,000, need 105 more)",
                     extra={
                         "event": "quota_insufficient",
                         "api": "youtube",
@@ -356,32 +277,32 @@ class YouTubeCollector(DataCollector):
             call_start = datetime.now(timezone.utc)
 
             try:
-                video = await self._fetch_latest_video(channel_id)
+                videos = await self._search_videos_for_topic(topic, max_results=5)
                 call_duration_ms = (datetime.now(timezone.utc) - call_start).total_seconds() * 1000
 
-                if video is not None:
-                    all_videos.append(video)
+                if videos:
+                    all_videos.extend(videos)
                     successful_calls += 1
                     logger.info(
-                        f"Collected video from channel {channel_id[:20]}",
+                        f"Collected {len(videos)} videos for topic '{topic}'",
                         extra={
                             "event": "api_call",
                             "api": "youtube",
-                            "topic": channel_id,
+                            "topic": topic,
                             "success": True,
-                            "video_id": video['video_id'],
+                            "videos_found": len(videos),
                             "duration_ms": round(call_duration_ms, 2)
                         }
                     )
                 else:
                     failed_calls += 1
-                    errors.append(f"Failed to collect from channel {channel_id}")
+                    errors.append(f"No videos found for topic: {topic}")
                     logger.warning(
-                        f"Skipping channel {channel_id[:20]} after retries",
+                        f"No videos found for topic '{topic}' after retries",
                         extra={
                             "event": "api_call_failed",
                             "api": "youtube",
-                            "topic": channel_id,
+                            "topic": topic,
                             "success": False,
                             "duration_ms": round(call_duration_ms, 2)
                         }
@@ -413,7 +334,7 @@ class YouTubeCollector(DataCollector):
         final_usage = await self.quota_limiter.get_usage_today()
 
         logger.info(
-            f"YouTube collection complete: {len(all_videos)} videos from {successful_calls}/{total_calls} channels",
+            f"YouTube collection complete: {len(all_videos)} videos from {successful_calls}/{total_calls} topics",
             extra={
                 "event": "collection_complete",
                 "api": "youtube",

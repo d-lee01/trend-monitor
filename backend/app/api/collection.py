@@ -64,9 +64,11 @@ async def store_trends(
                 continue  # Skip failed items
 
             # Create trend record
-            # For similarweb_social, use domain as title; otherwise use title/topic
+            # For similarweb_social, use domain as title; for YouTube use video_title; otherwise use title/topic
             if source == "similarweb_social":
                 title = f"{trend_data.get('domain', 'Unknown')} ({trend_data.get('category', 'Unknown Category')})"
+            elif source == "youtube":
+                title = trend_data.get("video_title", "Untitled Video")
             else:
                 title = trend_data.get("title", trend_data.get("topic", "Untitled"))
 
@@ -87,12 +89,13 @@ async def store_trends(
                 trend.reddit_spike_detected = trend_data.get("spike_detected", False)
 
             elif source == "youtube":
-                trend.youtube_views = trend_data.get("views")
-                trend.youtube_likes = trend_data.get("likes")
-                trend.youtube_comments = trend_data.get("comments")
-                trend.youtube_channel = trend_data.get("channel")
+                trend.youtube_views = trend_data.get("view_count")
+                trend.youtube_likes = trend_data.get("like_count")
+                trend.youtube_comments = trend_data.get("comment_count")
+                trend.youtube_channel = trend_data.get("channel_title")
                 trend.youtube_engagement_rate = trend_data.get("engagement_rate")
-                trend.youtube_spike_detected = trend_data.get("spike_detected", False)
+                # Note: spike detection not implemented yet for topic-based search
+                trend.youtube_spike_detected = False
 
             elif source == "google_trends":
                 trend.google_trends_interest = trend_data.get("current_interest")
