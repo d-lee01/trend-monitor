@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { TrendCard } from '@/components/TrendCard';
+import { TrendingVideos } from '@/components/TrendingVideos';
 import { CollectionButton } from '@/components/CollectionButton';
 import { api } from '@/lib/api';
 import { timeAgo } from '@/lib/formatters';
@@ -77,23 +78,29 @@ export default async function DashboardPage() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <h2 className="text-3xl font-bold text-gray-900 mb-6">
-          Trending Now - Top 10
-        </h2>
+        {/* Trending Topics Section */}
+        <section>
+          <h2 className="text-3xl font-bold text-gray-900 mb-6">
+            Trending Topics
+          </h2>
 
-        {trends.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-gray-600 text-lg">
-              No trends available yet. Click "Collect Latest Trends" to start data collection.
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {trends.map((trend) => (
-              <TrendCard key={trend.id} trend={trend} token={token} />
-            ))}
-          </div>
-        )}
+          {trends.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-gray-600 text-lg">
+                No trends available yet. Click "Collect Latest Trends" to start data collection.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {trends.map((trend) => (
+                <TrendCard key={trend.id} trend={trend} token={token} />
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* Trending Videos Section */}
+        <TrendingVideos token={token} />
       </main>
     </div>
   );

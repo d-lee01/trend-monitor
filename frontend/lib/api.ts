@@ -1,5 +1,5 @@
 // API client for backend communication
-import { Trend, TrendDetail, CollectionSummary, CollectionResponse, CollectionStatusResponse, BriefResponse } from './types';
+import { Trend, TrendDetail, CollectionSummary, CollectionResponse, CollectionStatusResponse, BriefResponse, YouTubeVideo } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -325,5 +325,45 @@ export const api = {
       }
       throw error;
     }
+  },
+
+  /**
+   * Get trending YouTube videos from latest collection
+   * @param token - JWT authentication token
+   * @param limit - Maximum number of videos to return (default: 20)
+   * @returns Array of YouTube videos sorted by engagement rate
+   * @throws APIError if request fails (except 404 which returns empty array)
+   */
+  async getYouTubeVideos(token: string, limit: number = 20): Promise<YouTubeVideo[]> {
+    const response = await fetch(`${API_URL}/trends/youtube/videos?limit=${limit}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+    });
+
+    // Handle 404 as empty state (no videos yet)
+    if (response.status === 404) {
+      return [];
+    }
+
+    if (!response.ok) {
+      // Provide specific error messages based on status code
+      if (response.status === 401) {
+        throw new APIError(401, 'Authentication failed. Please log in again.');
+      }
+      if (response.status === 403) {
+        throw new APIError(403, 'Access forbidden. You do not have permission to view videos.');
+      }
+      if (response.status === 429) {
+        throw new APIError(429, 'Rate limit exceeded. Please try again later.');
+      }
+      if (response.status >= 500) {
+        throw new APIError(response.status, 'Server error. Please try again later.');
+      }
+      throw new APIError(response.status, 'Failed to fetch YouTube videos');
+    }
+
+    return response.json();
   },
 };

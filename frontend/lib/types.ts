@@ -82,3 +82,19 @@ export interface BriefResponse {
   generated_at: string;  // ISO 8601 timestamp
   cached: boolean;  // True if cached, False if freshly generated
 }
+
+// YouTube Video interface (from GET /trends/youtube/videos)
+export interface YouTubeVideo {
+  id: string;  // Trend ID
+  video_id: string;  // YouTube video ID
+  video_title: string;  // Video title
+  channel: string;  // YouTube channel name
+  thumbnail_url: string;  // Video thumbnail URL
+  topic: string;  // Topic/search term that found this video
+  views: number;  // View count
+  likes: number;  // Like count
+  comments: number | null;  // Comment count (may be disabled)
+  engagement_rate: number;  // Engagement rate (likes/views)
+  published_at: string;  // ISO 8601 datetime when video was published
+  created_at: string;  // ISO 8601 datetime when video was discovered
+}
