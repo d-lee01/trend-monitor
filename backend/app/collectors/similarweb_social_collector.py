@@ -13,13 +13,12 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 # Categories to monitor for trending companies
+# NOTE: Optimized for Holiday Extras (travel company) to conserve API credits
 DEFAULT_CATEGORIES = [
-    "AI_Chatbots_and_Tools",
-    "Computers_Electronics_and_Technology~Programming_and_Developer_Software",
-    "E-commerce_and_Shopping~Marketplace",
-    "Finance~Investing",
-    "Health~Mental_Health",
-    "Games~Video_Games_Consoles_and_Accessories"
+    "Travel_and_Tourism",
+    "Travel_and_Tourism~Accommodation_and_Hotels",
+    "Travel_and_Tourism~Air_Travel",
+    "Travel_and_Tourism~Car_Rentals"
 ]
 
 # Social platforms to track for traction signals
@@ -377,8 +376,8 @@ class SimilarWebSocialCollector(DataCollector):
 
         for category in categories:
             try:
-                # Get top 20 sites in category
-                top_sites = await self._fetch_top_sites(category, limit=20)
+                # Get top 10 sites in category (reduced from 20 to conserve API credits)
+                top_sites = await self._fetch_top_sites(category, limit=10)
                 successful_calls += 1
 
                 # For each site, get social referral data
