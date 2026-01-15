@@ -1,0 +1,9 @@
+installation:
+  version: 6.0.0-alpha.23
+  installDate: 2026-01-14T16:31:29.596Z
+  lastUpdated: 2026-01-14T16:31:29.596Z
+modules:
+  - core
+  - cis
+ides:
+  - claude-code

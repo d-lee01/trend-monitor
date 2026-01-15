@@ -10,35 +10,25 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.collectors.base import DataCollector, CollectionResult, RateLimitInfo
 from app.collectors.rate_limiters import RequestsPerMinuteRateLimiter
 from app.collectors.retry import retry_with_backoff
+from app.collectors.topics import REDDIT_SUBREDDITS
 from app.config import settings
 
 logger = logging.getLogger(__name__)
-
-# Default subreddits to monitor
-DEFAULT_SUBREDDITS = [
-    "all",
-    "popular",
-    "videos",
-    "movies",
-    "television",
-    "music",
-    "news",
-    "technology",
-    "gaming",
-    "sports"
-]
 
 
 class RedditCollector(DataCollector):
     """Collects trending posts from Reddit using PRAW.
 
-    Monitors 10 default subreddits, collecting top 5 "hot" posts from each.
+    Monitors 10 default subreddits (defined in topics.py), collecting top 5 "hot" posts from each.
     Respects 60 requests/minute rate limit using RequestsPerMinuteRateLimiter.
     Retries failed requests with exponential backoff.
 
+    Note: The topics parameter is accepted for interface consistency with other collectors,
+    but Reddit always uses REDDIT_SUBREDDITS from topics.py.
+
     Example:
         collector = RedditCollector()
-        result = await collector.collect(topics=DEFAULT_SUBREDDITS)
+        result = await collector.collect()
         # Returns CollectionResult with 50 posts (10 subreddits × 5 posts)
     """
 
@@ -142,15 +132,21 @@ class RedditCollector(DataCollector):
             # Retry decorator will handle this
             raise
 
-    async def collect(self, topics: List[str]) -> CollectionResult:
-        """Collect trending posts from Reddit for given subreddits.
+    async def collect(self, topics: List[str] = None) -> CollectionResult:
+        """Collect trending posts from Reddit subreddits.
+
+        Note: This collector uses REDDIT_SUBREDDITS from topics.py (not the topics parameter).
+        The topics parameter is accepted for interface consistency but is ignored.
 
         Args:
-            topics: List of subreddit names (e.g., ["all", "videos", "gaming"])
+            topics: Ignored (required for DataCollector interface consistency)
 
         Returns:
             CollectionResult with collected posts and metrics
         """
+        # Use REDDIT_SUBREDDITS instead of topics parameter
+        subreddits_to_monitor = REDDIT_SUBREDDITS
+
         start_time = datetime.now(timezone.utc)
         all_posts = []
         successful_calls = 0
@@ -158,16 +154,16 @@ class RedditCollector(DataCollector):
         errors = []
 
         logger.info(
-            f"Starting Reddit collection for {len(topics)} subreddits",
+            f"Starting Reddit collection for {len(subreddits_to_monitor)} subreddits",
             extra={
                 "event": "collection_start",
                 "api": "reddit",
-                "num_topics": len(topics)
+                "num_topics": len(subreddits_to_monitor)
             }
         )
 
         # Collect from each subreddit
-        for subreddit_name in topics:
+        for subreddit_name in subreddits_to_monitor:
             call_start = datetime.now(timezone.utc)
             posts = await self._fetch_subreddit_posts(subreddit_name, limit=5)
             call_duration_ms = (datetime.now(timezone.utc) - call_start).total_seconds() * 1000
@@ -203,7 +199,7 @@ class RedditCollector(DataCollector):
 
         # Calculate metrics
         duration_seconds = (datetime.now(timezone.utc) - start_time).total_seconds()
-        total_calls = len(topics)
+        total_calls = len(subreddits_to_monitor)
 
         result = CollectionResult(
             source="reddit",

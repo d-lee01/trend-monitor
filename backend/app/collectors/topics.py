@@ -1,72 +1,64 @@
-"""Default topics for trend monitoring across all platforms."""
+"""Topics for trend monitoring across different platforms.
 
-# Default list of 50 trending topics to monitor
-# These topics are tracked across Reddit, YouTube, Google Trends, and SimilarWeb
-DEFAULT_TOPICS = [
-    # Technology & Innovation
-    "artificial intelligence",
-    "machine learning",
-    "quantum computing",
-    "blockchain",
-    "cryptocurrency",
-    "virtual reality",
-    "augmented reality",
-    "5G technology",
-    "robotics",
-    "autonomous vehicles",
+Each platform uses a different set of topics optimized for its content type:
+- YouTube: 15 curated topics for Holiday Extras content opportunities
+- Reddit: 10 default subreddits for trending posts
+- Google Trends: Generic trending search terms (disabled for now)
+"""
 
-    # Climate & Environment
-    "climate change",
-    "renewable energy",
-    "solar power",
-    "electric vehicles",
-    "carbon emissions",
-    "sustainability",
-    "environmental policy",
-    "green technology",
+# YouTube Topics - Curated for Holiday Extras (travel company)
+# Goal: Spot trending content to hijack, adapt, or react to for brand awareness
+YOUTUBE_TOPICS = [
+    # Core Travel Pain Points (What HX Solves)
+    "airport parking tips",
+    "airport lounge worth it",
+    "travel insurance explained",
+    "airport hotel deals",
 
-    # Science & Space
-    "space exploration",
-    "Mars mission",
-    "SpaceX",
-    "NASA",
-    "gene editing",
-    "CRISPR",
-    "biotechnology",
-    "medical research",
+    # Viral Travel Content (Jump On These)
+    "airport secrets",
+    "travel scam",
+    "things I regret travel",
+    "flight attendant tips",
 
-    # Business & Economy
-    "stock market",
-    "inflation",
-    "interest rates",
-    "real estate",
-    "startup funding",
-    "venture capital",
-    "remote work",
-    "gig economy",
+    # Trending Formats to Hijack
+    "rating tier list",
+    "day in the life vlog",
+    "expensive vs cheap",
+    "what £100 gets you",
 
-    # Entertainment & Media
-    "streaming services",
-    "gaming",
-    "esports",
-    "metaverse",
-    "NFT",
-    "social media",
-    "content creation",
-    "influencer marketing",
-
-    # Health & Wellness
-    "mental health",
-    "fitness",
-    "nutrition",
-    "healthcare",
-    "telemedicine",
-    "wellness trends",
-
-    # Politics & Society
-    "elections",
-    "education reform"
+    # UK-Specific + Seasonal Hooks
+    "UK holiday",
+    "half term holiday",
+    "Ryanair"
 ]
 
-# Verify we have exactly 50 topics
-assert len(DEFAULT_TOPICS) == 50, f"Expected 50 topics, found {len(DEFAULT_TOPICS)}"
+# Reddit Subreddits - Default subreddits to monitor for trending posts
+REDDIT_SUBREDDITS = [
+    "all",
+    "popular",
+    "videos",
+    "movies",
+    "television",
+    "music",
+    "news",
+    "technology",
+    "gaming",
+    "sports"
+]
+
+# Default topics - Use YouTube topics as the primary list for orchestrator
+# Reddit will override with its own subreddit list
+DEFAULT_TOPICS = YOUTUBE_TOPICS
+
+# Topic categories for UI grouping
+YOUTUBE_CATEGORIES = {
+    "Core Travel": YOUTUBE_TOPICS[0:4],
+    "Viral Travel Content": YOUTUBE_TOPICS[4:8],
+    "Trending Formats": YOUTUBE_TOPICS[8:12],
+    "UK & Seasonal": YOUTUBE_TOPICS[12:15]
+}
+
+# Verify counts
+assert len(YOUTUBE_TOPICS) == 15, f"Expected 15 YouTube topics, found {len(YOUTUBE_TOPICS)}"
+assert len(REDDIT_SUBREDDITS) == 10, f"Expected 10 Reddit subreddits, found {len(REDDIT_SUBREDDITS)}"

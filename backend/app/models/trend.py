@@ -38,7 +38,13 @@ class Trend(Base, UUIDMixin, TimestampMixin):
     # YouTube Metrics (raw)
     youtube_views: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     youtube_likes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    youtube_comments: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     youtube_channel: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    youtube_engagement_rate: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    youtube_video_id: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    youtube_thumbnail_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    youtube_topic: Mapped[Optional[str]] = mapped_column(String(200), nullable=True, index=True)
+    youtube_published_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
 
     # Google Trends Metrics (raw)
     google_trends_interest: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)

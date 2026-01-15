@@ -94,6 +94,15 @@ async def store_trends(
                 trend.youtube_comments = trend_data.get("comment_count")
                 trend.youtube_channel = trend_data.get("channel_title")
                 trend.youtube_engagement_rate = trend_data.get("engagement_rate")
+                trend.youtube_video_id = trend_data.get("video_id")
+                trend.youtube_thumbnail_url = trend_data.get("thumbnail_url")
+                trend.youtube_topic = trend_data.get("topic")
+                # Parse published_at ISO string to datetime
+                if trend_data.get("published_at"):
+                    from datetime import datetime
+                    trend.youtube_published_at = datetime.fromisoformat(
+                        trend_data["published_at"].replace('Z', '+00:00')
+                    )
                 # Note: spike detection not implemented yet for topic-based search
                 trend.youtube_spike_detected = False
 

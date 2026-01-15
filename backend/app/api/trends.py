@@ -12,7 +12,7 @@ from app.core.dependencies import get_current_user
 from app.models.user import User
 from app.models.trend import Trend
 from app.models.data_collection import DataCollection
-from app.schemas.trend import TrendListResponse, TrendDetailResponse, CollectionSummaryResponse
+from app.schemas.trend import TrendListResponse, TrendDetailResponse, CollectionSummaryResponse, YouTubeVideoResponse
 from app.schemas.brief import BriefResponse
 from app.services.claude_service import get_claude_service, ClaudeServiceError
 
@@ -276,6 +276,135 @@ async def get_latest_collection(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Failed to retrieve collection due to database error"
+        )
+
+
+@router.get("/youtube/videos", response_model=List[YouTubeVideoResponse])
+async def get_youtube_videos(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    limit: int = 20
+) -> List[YouTubeVideoResponse]:
+    """Get trending YouTube videos from latest completed collection.
+
+    Returns videos grouped by topic, sorted by engagement rate within each topic.
+    Only returns videos that have complete YouTube metadata (video_id, thumbnail, etc).
+
+    Requires JWT authentication.
+
+    Args:
+        limit: Maximum number of videos to return (default: 20)
+
+    Returns:
+        List of YouTube videos with complete metadata, sorted by engagement rate.
+        Returns empty list if no completed collections exist.
+
+    Raises:
+        401 Unauthorized if JWT token missing or invalid.
+        404 Not Found if no YouTube videos found.
+    """
+    start_time = datetime.now(timezone.utc)
+
+    try:
+        # Get latest completed collection
+        collection_stmt = select(DataCollection).where(
+            DataCollection.status == "completed"
+        ).order_by(
+            desc(DataCollection.completed_at)
+        ).limit(1)
+
+        collection_result = await db.execute(collection_stmt)
+        collection = collection_result.scalar_one_or_none()
+
+        if not collection:
+            logger.warning(
+                "No completed collections found",
+                extra={
+                    "event": "youtube_videos_not_found",
+                    "user": current_user.username
+                }
+            )
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No completed collections found"
+            )
+
+        # Get YouTube videos from latest collection
+        # Filter for trends that have youtube_video_id (indicating complete YouTube data)
+        videos_stmt = select(Trend).where(
+            Trend.collection_id == collection.id,
+            Trend.youtube_video_id.isnot(None)
+        ).order_by(
+            desc(Trend.youtube_engagement_rate)
+        ).limit(limit)
+
+        videos_result = await db.execute(videos_stmt)
+        trends = videos_result.scalars().all()
+
+        if not trends:
+            logger.warning(
+                "No YouTube videos found in latest collection",
+                extra={
+                    "event": "no_youtube_videos",
+                    "user": current_user.username,
+                    "collection_id": str(collection.id)
+                }
+            )
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No YouTube videos found in latest collection"
+            )
+
+        # Transform trends to YouTubeVideoResponse
+        videos = [
+            YouTubeVideoResponse(
+                id=trend.id,
+                video_id=trend.youtube_video_id,
+                video_title=trend.title,
+                channel=trend.youtube_channel,
+                thumbnail_url=trend.youtube_thumbnail_url,
+                topic=trend.youtube_topic,
+                views=trend.youtube_views,
+                likes=trend.youtube_likes,
+                comments=trend.youtube_comments,
+                engagement_rate=trend.youtube_engagement_rate,
+                published_at=trend.youtube_published_at,
+                created_at=trend.created_at
+            )
+            for trend in trends
+        ]
+
+        # Calculate duration
+        duration = (datetime.now(timezone.utc) - start_time).total_seconds()
+
+        logger.info(
+            "YouTube videos retrieved",
+            extra={
+                "event": "youtube_videos_retrieved",
+                "user": current_user.username,
+                "collection_id": str(collection.id),
+                "videos_count": len(videos),
+                "duration_ms": round(duration * 1000, 2)
+            }
+        )
+
+        return videos
+
+    except HTTPException:
+        # Re-raise HTTP exceptions (404, 401, etc.)
+        raise
+    except Exception as e:
+        logger.error(
+            "Failed to retrieve YouTube videos",
+            extra={
+                "event": "youtube_videos_retrieval_failed",
+                "user": current_user.username,
+                "error": str(e)
+            }
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Failed to retrieve YouTube videos due to database error"
         )
 
 

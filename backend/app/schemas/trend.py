@@ -108,6 +108,42 @@ class TrendDetailResponse(BaseModel):
         }
 
 
+class YouTubeVideoResponse(BaseModel):
+    """Response schema for YouTube videos endpoint."""
+
+    id: UUID = Field(..., description="Trend ID (unique identifier)")
+    video_id: str = Field(..., max_length=20, description="YouTube video ID")
+    video_title: str = Field(..., max_length=500, description="Video title")
+    channel: str = Field(..., max_length=200, description="YouTube channel name")
+    thumbnail_url: str = Field(..., max_length=500, description="Video thumbnail URL")
+    topic: str = Field(..., max_length=200, description="Topic/search term that found this video")
+    views: int = Field(..., description="View count")
+    likes: int = Field(..., description="Like count")
+    comments: Optional[int] = Field(None, description="Comment count (may be disabled)")
+    engagement_rate: float = Field(..., description="Engagement rate (likes/views)")
+    published_at: datetime = Field(..., description="When video was published")
+    created_at: datetime = Field(..., description="When video was discovered")
+
+    class Config:
+        from_attributes = True
+        json_schema_extra = {
+            "example": {
+                "id": "550e8400-e29b-41d4-a716-446655440000",
+                "video_id": "dQw4w9WgXcQ",
+                "video_title": "10 Airport Parking Secrets You NEED to Know!",
+                "channel": "Travel Hacks Daily",
+                "thumbnail_url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/default.jpg",
+                "topic": "airport parking tips",
+                "views": 125000,
+                "likes": 8500,
+                "comments": 342,
+                "engagement_rate": 0.068,
+                "published_at": "2026-01-14T10:30:00Z",
+                "created_at": "2026-01-15T08:45:00Z"
+            }
+        }
+
+
 class CollectionSummaryResponse(BaseModel):
     """Response schema for GET /collections/latest endpoint."""
 
