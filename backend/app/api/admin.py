@@ -67,6 +67,50 @@ async def create_user_endpoint(
         }
 
 
+@router.post("/run-migrations")
+async def run_migrations():
+    """Run pending database migrations.
+
+    This endpoint runs `alembic upgrade head` to apply any pending migrations.
+    Useful for applying migrations after deployments.
+    """
+    import subprocess
+    import traceback
+    import os
+
+    try:
+        # Determine the correct working directory (Railway uses /app)
+        backend_dir = "/app/backend" if os.path.exists("/app/backend") else "/Users/david.lee/trend-monitor/backend"
+
+        # Run alembic upgrade head
+        result = subprocess.run(
+            ["alembic", "upgrade", "head"],
+            cwd=backend_dir,
+            capture_output=True,
+            text=True,
+            timeout=60
+        )
+
+        return {
+            "status": "success" if result.returncode == 0 else "failed",
+            "returncode": result.returncode,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "cwd": backend_dir
+        }
+    except subprocess.TimeoutExpired:
+        return {
+            "status": "error",
+            "message": "Migration timed out after 60 seconds"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+            "traceback": traceback.format_exc()
+        }
+
+
 @router.post("/fail-stuck-collection")
 async def fail_stuck_collection(
     db: AsyncSession = Depends(get_db)
