@@ -115,7 +115,8 @@ class SimilarWebSocialCollector(DataCollector):
 
         date_str = f"{year}-{month:02d}"
 
-        url = f"{self.base_url}/v1/TopSites/{category}"
+        # Use v4 API endpoint format: /v4/website/{category}/topsites/total
+        url = f"{self.base_url}/v4/website/{category}/topsites/total"
         params = {
             "country": "world",
             "start_date": date_str,
@@ -139,8 +140,8 @@ class SimilarWebSocialCollector(DataCollector):
         response.raise_for_status()
         data = response.json()
 
-        # Extract site list
-        sites = data.get("sites", [])
+        # Extract site list (v4 API returns 'top_sites' instead of 'sites')
+        sites = data.get("top_sites", [])
 
         logger.info(
             f"Retrieved {len(sites)} top sites from category: {category}",
@@ -382,7 +383,8 @@ class SimilarWebSocialCollector(DataCollector):
 
                 # For each site, get social referral data
                 for site_data in top_sites:
-                    domain = site_data.get("site", site_data.get("domain", ""))
+                    # v4 API uses 'domain' field (v1 used 'site')
+                    domain = site_data.get("domain", site_data.get("site", ""))
                     rank = site_data.get("rank", 0)
 
                     if not domain:
