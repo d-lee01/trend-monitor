@@ -99,7 +99,6 @@ async def store_trends(
                 trend.youtube_topic = trend_data.get("topic")
                 # Parse published_at ISO string to datetime
                 if trend_data.get("published_at"):
-                    from datetime import datetime
                     trend.youtube_published_at = datetime.fromisoformat(
                         trend_data["published_at"].replace('Z', '+00:00')
                     )
