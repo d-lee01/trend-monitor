@@ -1,37 +1,46 @@
 """Topics for trend monitoring across different platforms.
 
 Each platform uses a different set of topics optimized for its content type:
-- YouTube: 15 curated topics for Holiday Extras content opportunities
+- YouTube: Categorized topics (travel, news, all) for Holiday Extras
 - Reddit: 10 default subreddits for trending posts
 - Google Trends: Generic trending search terms (disabled for now)
 """
 
-# YouTube Topics - Curated for Holiday Extras (travel company)
-# Goal: Spot trending content to hijack, adapt, or react to for brand awareness
-YOUTUBE_TOPICS = [
+from typing import Dict, List
+
+# YouTube Topics with Categories - Curated for Holiday Extras (travel company)
+# Categories: "travel", "news", or topic itself (for "all" section)
+
+YOUTUBE_TOPICS_WITH_CATEGORIES: List[Dict[str, str]] = [
     # Core Travel Pain Points (What HX Solves)
-    "airport parking tips",
-    "airport lounge worth it",
-    "travel insurance explained",
-    "airport hotel deals",
+    {"topic": "airport parking tips", "category": "travel"},
+    {"topic": "airport lounge worth it", "category": "travel"},
+    {"topic": "travel insurance explained", "category": "travel"},
+    {"topic": "airport hotel deals", "category": "travel"},
 
     # Viral Travel Content (Jump On These)
-    "airport secrets",
-    "travel scam",
-    "things I regret travel",
-    "flight attendant tips",
-
-    # Trending Formats to Hijack
-    "rating tier list",
-    "day in the life vlog",
-    "expensive vs cheap",
-    "what £100 gets you",
+    {"topic": "airport secrets", "category": "travel"},
+    {"topic": "travel scam", "category": "travel"},
+    {"topic": "things I regret travel", "category": "travel"},
+    {"topic": "flight attendant tips", "category": "travel"},
 
     # UK-Specific + Seasonal Hooks
-    "UK holiday",
-    "half term holiday",
-    "Ryanair"
+    {"topic": "UK holiday", "category": "travel"},
+    {"topic": "half term holiday", "category": "travel"},
+    {"topic": "Ryanair", "category": "travel"},
+
+    # Travel News & Industry Updates
+    {"topic": "travel news 2026", "category": "news"},
+    {"topic": "airline news today", "category": "news"},
+    {"topic": "airport strikes", "category": "news"},
+    {"topic": "flight cancellations", "category": "news"},
 ]
+
+# Extract just the topics for backward compatibility
+YOUTUBE_TOPICS = [item["topic"] for item in YOUTUBE_TOPICS_WITH_CATEGORIES]
+
+# Category mapping for quick lookup
+YOUTUBE_TOPIC_CATEGORIES = {item["topic"]: item["category"] for item in YOUTUBE_TOPICS_WITH_CATEGORIES}
 
 # Reddit Subreddits - Default subreddits to monitor for trending posts
 REDDIT_SUBREDDITS = [
@@ -55,8 +64,8 @@ DEFAULT_TOPICS = YOUTUBE_TOPICS
 YOUTUBE_CATEGORIES = {
     "Core Travel": YOUTUBE_TOPICS[0:4],
     "Viral Travel Content": YOUTUBE_TOPICS[4:8],
-    "Trending Formats": YOUTUBE_TOPICS[8:12],
-    "UK & Seasonal": YOUTUBE_TOPICS[12:15]
+    "UK & Seasonal": YOUTUBE_TOPICS[8:11],
+    "Travel News": YOUTUBE_TOPICS[11:15]
 }
 
 # Verify counts

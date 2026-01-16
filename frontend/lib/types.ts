@@ -91,6 +91,7 @@ export interface YouTubeVideo {
   channel: string;  // YouTube channel name
   thumbnail_url: string;  // Video thumbnail URL
   topic: string;  // Topic/search term that found this video
+  category: string;  // Category: "travel", "news", or "unknown"
   views: number;  // View count
   likes: number;  // Like count
   comments: number | null;  // Comment count (may be disabled)

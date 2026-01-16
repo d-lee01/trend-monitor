@@ -10,6 +10,7 @@ from cachetools import TTLCache
 from app.collectors.base import DataCollector, CollectionResult, RateLimitInfo
 from app.collectors.rate_limiters import DailyQuotaRateLimiter
 from app.collectors.retry import retry_with_backoff
+from app.collectors.topics import YOUTUBE_TOPIC_CATEGORIES
 from app.config import settings
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -104,9 +105,9 @@ class YouTubeCollector(DataCollector):
                         part="snippet",
                         q=topic,
                         type="video",
-                        order="relevance",  # Most relevant videos
+                        order="viewCount",  # Most-viewed videos (trending!)
                         maxResults=max_results,
-                        publishedAfter=(datetime.now(timezone.utc) - timedelta(days=30)).isoformat().replace('+00:00', 'Z'),  # Last 30 days
+                        publishedAfter=(datetime.now(timezone.utc) - timedelta(days=7)).isoformat().replace('+00:00', 'Z'),  # Last 7 days
                         relevanceLanguage="en",  # English videos
                         safeSearch="moderate"
                     ).execute()
@@ -151,6 +152,9 @@ class YouTubeCollector(DataCollector):
                 like_count = int(stats.get('likeCount', 0))
                 engagement_rate = like_count / view_count if view_count > 0 else 0.0
 
+                # Get category for this topic (travel, news, or unknown)
+                category = YOUTUBE_TOPIC_CATEGORIES.get(topic, "unknown")
+
                 video_data = {
                     "video_id": video['id'],
                     "video_title": snippet['title'],
@@ -163,7 +167,8 @@ class YouTubeCollector(DataCollector):
                     "hours_since_publish": round(hours_since_publish, 2),
                     "engagement_rate": round(engagement_rate, 4),
                     "thumbnail_url": snippet['thumbnails']['default']['url'],
-                    "topic": topic  # Track which topic this video was found for
+                    "topic": topic,  # Track which topic this video was found for
+                    "category": category  # Category: "travel", "news", or "unknown"
                 }
                 videos_data.append(video_data)
 
