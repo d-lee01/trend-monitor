@@ -146,7 +146,13 @@ export function CollectionButton({ token }: CollectionButtonProps) {
     <button
       onClick={handleCollect}
       disabled={isLoading}
-      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+      className="px-4 py-2 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-bold"
+      style={{
+        backgroundColor: isLoading ? '#6B3AAF' : '#542E91',
+        fontFamily: 'Arial, sans-serif'
+      }}
+      onMouseEnter={(e) => !isLoading && (e.currentTarget.style.backgroundColor = '#6B3AAF')}
+      onMouseLeave={(e) => !isLoading && (e.currentTarget.style.backgroundColor = '#542E91')}
       aria-busy={isLoading}
       aria-label={isLoading ? 'Collection in progress' : 'Collect latest trends'}
     >
