@@ -155,6 +155,17 @@ class YouTubeCollector(DataCollector):
                 # Get category for this topic (travel, news, or unknown)
                 category = YOUTUBE_TOPIC_CATEGORIES.get(topic, "unknown")
 
+                # Get highest quality thumbnail available (maxres > high > medium > default)
+                thumbnails = snippet['thumbnails']
+                if 'maxres' in thumbnails:
+                    thumbnail_url = thumbnails['maxres']['url']
+                elif 'high' in thumbnails:
+                    thumbnail_url = thumbnails['high']['url']
+                elif 'medium' in thumbnails:
+                    thumbnail_url = thumbnails['medium']['url']
+                else:
+                    thumbnail_url = thumbnails['default']['url']
+
                 video_data = {
                     "video_id": video['id'],
                     "video_title": snippet['title'],
@@ -166,7 +177,7 @@ class YouTubeCollector(DataCollector):
                     "comment_count": int(stats.get('commentCount', 0)),
                     "hours_since_publish": round(hours_since_publish, 2),
                     "engagement_rate": round(engagement_rate, 4),
-                    "thumbnail_url": snippet['thumbnails']['default']['url'],
+                    "thumbnail_url": thumbnail_url,
                     "topic": topic,  # Track which topic this video was found for
                     "category": category  # Category: "travel", "news", or "unknown"
                 }
